@@ -885,27 +885,49 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         }
     }
 
-    /* YouTube's own player endpoint, asked with the Android client: the answer carries
-       direct audio URLs (no signature handling needed). Only URLs that come as plain
-       "url" are usable here. */
+    /* YouTube keeps rotating the client name / API key that the "player" endpoint
+       accepts (projects like YouTune hard-code one and stop working a few months later),
+       so the configurations are tried one after another and the first answer that
+       carries a direct audio URL wins. */
+    private struct StreamConfig {
+        let client: String, version: String, key: String, host: String
+        var ua: String { client == "WEB" ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36" : "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip" }
+        var url: URL? { URL(string: host + "/youtubei/v1/player?alt=json&key=" + key) }
+    }
+    private static let streamConfigs: [StreamConfig] = [
+        StreamConfig(client: "ANDROID_MUSIC", version: "5.16.51", key: "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30", host: "https://music.youtube.com"),
+        StreamConfig(client: "ANDROID", version: "19.09.37", key: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w", host: "https://music.youtube.com"),
+        StreamConfig(client: "WEB", version: "2.20240403.00.00", key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", host: "https://www.youtube.com")
+    ]
+
     private func fetchStreamURL(videoId: String, completion: @escaping (URL?, Double) -> Void) {
-        guard let u = URL(string: "https://music.youtube.com/youtubei/v1/player") else { completion(nil, 0); return }
+        tryConfigs(YouTubeCapacitorPlugin.streamConfigs, videoId: videoId, completion: completion)
+    }
+
+    private func tryConfigs(_ configs: [StreamConfig], videoId: String, completion: @escaping (URL?, Double) -> Void) {
+        guard let cfg = configs.first else { completion(nil, 0); return }
+        guard let u = cfg.url else { tryConfigs(Array(configs.dropFirst()), videoId: videoId, completion: completion); return }
         var req = URLRequest(url: u)
         req.httpMethod = "POST"
         req.timeoutInterval = 12
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip", forHTTPHeaderField: "User-Agent")
+        req.setValue(cfg.ua, forHTTPHeaderField: "User-Agent")
+        req.setValue("https://music.youtube.com/", forHTTPHeaderField: "Referer")
         let body: [String: Any] = [
             "videoId": videoId,
             "contentCheckOk": true,
             "racyCheckOk": true,
-            "context": ["client": ["clientName": "ANDROID", "clientVersion": "19.09.37", "androidSdkVersion": 30, "hl": "en", "gl": "US"]]
+            "context": ["client": ["clientName": cfg.client, "clientVersion": cfg.version, "hl": "en", "gl": "US"]]
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let parsed: (URL?, Double) = (code == 200 && data != nil) ? YouTubeCapacitorPlugin.parseStream(data: data!) : (nil, 0)
-            DispatchQueue.main.async { [weak self] in _ = self; completion(parsed.0, parsed.1) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if let url = parsed.0 { completion(url, parsed.1) }
+                else { self.tryConfigs(Array(configs.dropFirst()), videoId: videoId, completion: completion) }
+            }
         }.resume()
     }
 
@@ -922,8 +944,10 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
             guard let mime = f["mimeType"] as? String, mime.hasPrefix("audio/") else { continue }
             guard let s = f["url"] as? String, let url = URL(string: s) else { continue }
             if fallback == nil { fallback = url }
-            let bitrate = (f["bitrate"] as? Double) ?? 0
-            if bitrate <= 160000 && bitrate > chosenBitrate { chosen = url; chosenBitrate = bitrate }
+            // Ranking by audioQuality (HIGH > MEDIUM > LOW), same as the YouTune extractor
+            let q = (f["audioQuality"] as? String) ?? ""
+            let rank: Double = q == "AUDIO_QUALITY_HIGH" ? 3 : (q == "AUDIO_QUALITY_MEDIUM" ? 2 : 1)
+            if rank > chosenBitrate { chosen = url; chosenBitrate = rank }
         }
         return (chosen ?? fallback, duration)
     }
