@@ -58,6 +58,18 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     private var lastAdvanced: (index: Int, videoId: String)?
     private var bgTask: UIBackgroundTaskIdentifier = .invalid
 
+    // Direct stream playback (the way apps like YouTify do it): the audio URL is fetched
+    // from YouTube's own player endpoint and played with AVPlayer. That is ordinary app
+    // audio, so background playback, the lock screen and Control Center work like in any
+    // other music app. If the URL cannot be fetched, the embedded web player is used.
+    private let streamEnabled = true
+    private var streamMode = false
+    private var streamPlayer: AVPlayer?
+    private var streamItem: AVPlayerItem?
+    private var streamDuration: Double = 0
+    private var streamEndedObserver: NSObjectProtocol?
+    private var streamFailedObserver: NSObjectProtocol?
+
     private var cancellables = Set<AnyCancellable>()
 
     // Every load bumps this. Async work (progress polling, delayed loads) captures it and
@@ -249,6 +261,13 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     private func performPause() {
         intendedPlaybackState = "paused"
         resumeGeneration &+= 1
+        if streamMode {
+            streamPlayer?.pause()
+            notifyState("paused")
+            keepSessionAliveWhilePaused()
+            pushNowPlaying()
+            return
+        }
         Task { try? await player?.pause() }
         keepSessionAliveWhilePaused()
         pushNowPlaying()
@@ -258,6 +277,12 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         guard intendedPlaybackState == "playing", !isInterrupted else { return }
         activateAudioSession()
         silentPlayer.play()
+        if streamMode {
+            if streamPlayer?.timeControlStatus != .playing { streamPlayer?.play() }
+            notifyState("playing")
+            resumeGeneration &+= 1
+            return
+        }
         Task { try? await player?.play() }
         resumeGeneration &+= 1
         let gen = resumeGeneration
@@ -653,9 +678,12 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
        while the page was frozen. */
     @objc func getState(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            let playing = self.intendedPlaybackState == "playing" && (!self.streamMode || self.streamPlayer?.timeControlStatus == .playing)
+            var currentTime = self.npElapsed
+            if self.streamMode, let t = self.streamPlayer?.currentTime(), t.isValid && !t.isIndefinite { currentTime = max(0, t.seconds) }
             call.resolve([
-                "playing": self.intendedPlaybackState == "playing",
-                "currentTime": self.npElapsed,
+                "playing": playing,
+                "currentTime": currentTime,
                 "duration": self.cachedDuration > 0 ? self.cachedDuration : self.npDuration,
                 "state": self.lastNotifiedState
             ])
@@ -665,6 +693,7 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.intendedPlaybackState = "paused"
+            self.stopStream()
             Task { try? await self.player?.stop() }
             self.cancelSilenceStop()
             self.silentPlayer.pause()
@@ -675,7 +704,11 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     @objc func seekTo(_ call: CAPPluginCall) {
         let seconds = call.getDouble("seconds") ?? 0
         DispatchQueue.main.async {
-            Task { try? await self.player?.seek(to: Measurement(value: seconds, unit: .seconds), allowSeekAhead: true) }
+            if self.streamMode {
+                self.streamPlayer?.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            } else {
+                Task { try? await self.player?.seek(to: Measurement(value: seconds, unit: .seconds), allowSeekAhead: true) }
+            }
             call.resolve()
         }
     }
@@ -716,9 +749,15 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         if repeatOne {
             didHandleEndForCurrentLoad = true
             intendedPlaybackState = "playing"
-            Task {
-                try? await self.player?.seek(to: Measurement(value: 0, unit: .seconds), allowSeekAhead: true)
-                try? await self.player?.play()
+            if streamMode {
+                streamPlayer?.seek(to: .zero)
+                streamPlayer?.play()
+                notifyState("playing")
+            } else {
+                Task {
+                    try? await self.player?.seek(to: Measurement(value: 0, unit: .seconds), allowSeekAhead: true)
+                    try? await self.player?.play()
+                }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.didHandleEndForCurrentLoad = false }
             return true
@@ -733,7 +772,7 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         intendedPlaybackState = "playing"
         activateAudioSession()
         silentPlayer.play()
-        startLoading(videoId: item.videoId)
+        loadNextTrack(videoId: item.videoId)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.didHandleEndForCurrentLoad = false }
         npTitle = item.title; npArtist = item.artist; npDuration = item.duration; npElapsed = 0
         applyArtwork(urlString: item.artworkUrl)
@@ -759,6 +798,7 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     }
 
     private func pollProgress() {
+        if streamMode { pollStreamProgress(); return }
         if stateQueryInFlight { return }
         let gen = loadGeneration
         let needDuration = cachedDuration <= 0 || Date().timeIntervalSince(lastDurationFetch) > 3
@@ -791,6 +831,176 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
                 if duration > 0 { self.npDuration = duration }
                 self.pushNowPlaying()
             }
+        }
+    }
+
+    // MARK: - Direct audio stream (native playback that survives the background)
+
+    /* Asked by the web page before every track. Resolves {ok:true} when the audio
+       stream was fetched and native AVPlayer playback started, {ok:false} when it was
+       not - the page then falls back to the embedded web player as before. */
+    @objc func loadStream(_ call: CAPPluginCall) {
+        let videoId = call.getString("videoId") ?? ""
+        DispatchQueue.main.async {
+            self.lastAdvanced = nil
+            self.didNotifyErrorForCurrentLoad = false
+            self.didHandleEndForCurrentLoad = false
+            self.lastNotifiedState = ""
+            self.isInterrupted = false
+            self.localMode = false
+            self.npElapsed = 0
+            guard self.streamEnabled, !videoId.isEmpty else { call.resolve(["ok": false]); return }
+            self.loadStartedAt = Date()
+            self.loadGeneration &+= 1
+            self.fetchStreamURL(videoId: videoId) { [weak self] url, duration in
+                guard let self = self else { return }
+                guard let url = url else {
+                    self.stopStream()
+                    call.resolve(["ok": false])
+                    return
+                }
+                self.playStream(url: url, duration: duration, videoId: videoId)
+                call.resolve(["ok": true])
+            }
+        }
+    }
+
+    /* Next track of a queue that is already playing natively - keep the same mode
+       (native stream) instead of dropping back to the web view. */
+    private func loadNextTrack(videoId: String) {
+        guard streamEnabled, streamMode || streamItem != nil else {
+            stopStream()
+            startLoading(videoId: videoId)
+            return
+        }
+        loadStartedAt = Date()
+        fetchStreamURL(videoId: videoId) { [weak self] url, duration in
+            guard let self = self else { return }
+            guard let url = url else {
+                self.stopStream()
+                self.startLoading(videoId: videoId)
+                return
+            }
+            self.playStream(url: url, duration: duration, videoId: videoId)
+        }
+    }
+
+    /* YouTube's own player endpoint, asked with the Android client: the answer carries
+       direct audio URLs (no signature handling needed). Only URLs that come as plain
+       "url" are usable here. */
+    private func fetchStreamURL(videoId: String, completion: @escaping (URL?, Double) -> Void) {
+        guard let u = URL(string: "https://music.youtube.com/youtubei/v1/player") else { completion(nil, 0); return }
+        var req = URLRequest(url: u)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 12
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip", forHTTPHeaderField: "User-Agent")
+        let body: [String: Any] = [
+            "videoId": videoId,
+            "contentCheckOk": true,
+            "racyCheckOk": true,
+            "context": ["client": ["clientName": "ANDROID", "clientVersion": "19.09.37", "androidSdkVersion": 30, "hl": "en", "gl": "US"]]
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let parsed: (URL?, Double) = (code == 200 && data != nil) ? YouTubeCapacitorPlugin.parseStream(data: data!) : (nil, 0)
+            DispatchQueue.main.async { [weak self] in _ = self; completion(parsed.0, parsed.1) }
+        }.resume()
+    }
+
+    private static func parseStream(data: Data) -> (URL?, Double) {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, 0) }
+        let details = json["videoDetails"] as? [String: Any]
+        let duration = Double((details?["lengthSeconds"] as? String) ?? "") ?? 0
+        let streaming = json["streamingData"] as? [String: Any]
+        let formats = (streaming?["adaptiveFormats"] as? [[String: Any]]) ?? []
+        var chosen: URL? = nil
+        var chosenBitrate: Double = -1
+        var fallback: URL? = nil
+        for f in formats {
+            guard let mime = f["mimeType"] as? String, mime.hasPrefix("audio/") else { continue }
+            guard let s = f["url"] as? String, let url = URL(string: s) else { continue }
+            if fallback == nil { fallback = url }
+            let bitrate = (f["bitrate"] as? Double) ?? 0
+            if bitrate <= 160000 && bitrate > chosenBitrate { chosen = url; chosenBitrate = bitrate }
+        }
+        return (chosen ?? fallback, duration)
+    }
+
+    private func playStream(url: URL, duration: Double, videoId: String) {
+        stopStream()
+        loadConfirmed = true
+        currentVideoId = videoId
+        streamDuration = duration
+        cachedDuration = duration
+        lastDurationFetch = Date()
+        loadStartedAt = Date()
+        intendedPlaybackState = "playing"
+        streamMode = true
+        activateAudioSession()
+        silentPlayer.play()
+        beginReceivingRemote()
+
+        let item = AVPlayerItem(url: url)
+        streamItem = item
+        let p = AVPlayer(playerItem: item)
+        p.automaticallyWaitsToMinimizeStalling = true
+        streamPlayer = p
+        streamEndedObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            self.notifyState("ended")
+            _ = self.handleTrackEnded()
+        }
+        streamFailedObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            if !self.didNotifyErrorForCurrentLoad {
+                self.didNotifyErrorForCurrentLoad = true
+                self.notifyListeners("youtubeError", data: ["videoId": videoId])
+            }
+        }
+        p.play()
+        notifyState("playing")
+        pushNowPlaying()
+    }
+
+    private func stopStream() {
+        if let obs = streamEndedObserver { NotificationCenter.default.removeObserver(obs); streamEndedObserver = nil }
+        if let obs = streamFailedObserver { NotificationCenter.default.removeObserver(obs); streamFailedObserver = nil }
+        streamPlayer?.pause()
+        streamPlayer = nil
+        streamItem = nil
+        streamMode = false
+    }
+
+    private func beginReceivingRemote() {
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+    }
+
+    private func notifyState(_ state: String) {
+        loadConfirmed = true
+        guard state != lastNotifiedState else { return }
+        lastNotifiedState = state
+        notifyListeners("youtubeStateChange", data: ["state": state])
+    }
+
+    private func pollStreamProgress() {
+        guard let p = streamPlayer, let item = streamItem else { return }
+        let t = p.currentTime()
+        guard t.isValid && !t.isIndefinite else { return }
+        let c = max(0, t.seconds)
+        var d = streamDuration
+        if d <= 0, item.duration.isValid && !item.duration.isIndefinite { d = item.duration.seconds }
+        if d > 0 { cachedDuration = d; npDuration = d }
+        notifyListeners("youtubeTimeUpdate", data: [
+            "currentTime": c,
+            "duration": d,
+            "videoId": currentVideoId
+        ])
+        if Date().timeIntervalSince(lastNowPlayingUpdate) > 1.0 {
+            lastNowPlayingUpdate = Date()
+            npElapsed = c
+            pushNowPlaying()
         }
     }
 }

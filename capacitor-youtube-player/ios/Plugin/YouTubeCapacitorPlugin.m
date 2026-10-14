@@ -5,6 +5,7 @@
 // each method the plugin supports using the CAP_PLUGIN_METHOD macro.
 CAP_PLUGIN(YouTubeCapacitorPlugin, "YouTubeCapacitorPlugin",
            CAP_PLUGIN_METHOD(load, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(loadStream, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(play, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(pause, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(toggle, CAPPluginReturnPromise);

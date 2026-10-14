@@ -1800,8 +1800,22 @@ function ytLoad(videoId){
   if (isNativeYT) {
     seeking = false;
     try { npSeekEl.value = 0; npSeekEl.style.setProperty('--fill','0%'); npCurrentEl.textContent = fmt(0); miniProgressEl.style.width = '0%'; } catch (e) {}
-    window.Capacitor.Plugins.YouTubeCapacitorPlugin.load({ videoId: videoId }).then(() => {
-        window.Capacitor.Plugins.YouTubeCapacitorPlugin.play();
+    const NP = window.Capacitor.Plugins.YouTubeCapacitorPlugin;
+    /* Native audio-stream playback first (like YouTify): the plugin plays the stream
+       with AVPlayer, so the music keeps playing in the background and the lock screen
+       works. When it cannot fetch the stream it answers {ok:false} and we fall back to
+       the embedded web player, exactly as before. */
+    if (NP && NP.loadStream) {
+      Promise.resolve().then(() => NP.loadStream({ videoId: videoId })).then(r => {
+        if (r && r.ok) return;
+        NP.load({ videoId: videoId }).then(() => { NP.play(); });
+      }).catch(() => {
+        NP.load({ videoId: videoId }).then(() => { NP.play(); });
+      });
+      return;
+    }
+    NP.load({ videoId: videoId }).then(() => {
+        NP.play();
     });
     return;
   }

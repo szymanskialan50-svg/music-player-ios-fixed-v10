@@ -2,6 +2,12 @@ import type { PluginListenerHandle } from '@capacitor/core';
 
 export interface YouTubeCapacitorPlugin {
   load(options: { videoId: string }): Promise<void>;
+  /**
+   * Native audio-stream playback (works in the background + on the lock screen).
+   * Resolves { ok: false } when the stream could not be fetched, and the page should
+   * fall back to `load()` (embedded web player).
+   */
+  loadStream(options: { videoId: string }): Promise<{ ok: boolean }>;
   play(): Promise<void>;
   pause(): Promise<void>;
   /** Play/pause decided by the native state; resolves with the new state. */
