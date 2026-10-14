@@ -1,119 +1,12 @@
-name: Build mobile apps (APK + IPA)
+name: Build iOS app (IPA)
 
-# Run manually from the Actions tab, or automatically on every push to main.
+# Builds the iOS app (.ipa). Run manually from the Actions tab, or automatically on push to main.
 on:
   workflow_dispatch:
   push:
     branches: [main]
 
 jobs:
-  # ────────────────────────────────────────────────────────────────
-  # ANDROID — produces a working .apk with ZERO extra setup.
-  # A debug APK is always built. If you add the ANDROID_KEYSTORE_BASE64
-  # secret (and friends, see MOBILE_BUILD.md) it also builds a signed
-  # release APK.
-  # ────────────────────────────────────────────────────────────────
-  android:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Sam znajduje folder, w którym leży package.json - działa niezależnie
-      # od tego, czy projekt jest w katalogu głównym repo, czy w podfolderze
-      # (np. "music-player-fixed"). Naprawia błąd "could not find a
-      # package.json file" / "No such file or directory" przy złym folderze.
-      - name: Locate project directory
-        id: locate
-        run: |
-          pkg=$(find . -maxdepth 4 -name package.json -not -path "*/node_modules/*" -not -path "*/capacitor-youtube-player/*" | awk '{ print length, $0 }' | sort -n | cut -d" " -f2- | head -n 1)
-          if [ -z "$pkg" ]; then
-            echo "::error::Nie znaleziono package.json w repozytorium."
-            exit 1
-          fi
-          dir=$(dirname "$pkg")
-          dir=${dir#./}
-          [ -z "$dir" ] && dir="."
-          echo "Znaleziono projekt w: $dir"
-          echo "PROJECT_DIR=$dir" >> "$GITHUB_ENV"
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: bun install
-
-      - name: Prepare web assets (public/player.html -> www/index.html)
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npm run prepare:www
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Add Android platform
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npx cap add android
-
-      # Bez tego kroku Android dostaje domyślną ikonę-placeholder z pustym/
-      # przezroczystym tłem, która ginie na jasnym launcherze (stąd "niewidoczna
-      # ikonka na białym trybie"). Generujemy prawdziwą ikonę z assets/logo.png
-      # na jednolitym, ciemnym tle, żeby była widoczna zawsze - jasny i ciemny motyw.
-      - name: Generate app icon
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npx @capacitor/assets generate --android --iconBackgroundColor '#0B0B0F' --iconBackgroundColorDark '#0B0B0F' --splashBackgroundColor '#0B0B0F' --splashBackgroundColorDark '#0B0B0F'
-
-      - name: Sync Capacitor
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npx cap sync android
-
-      # NOTE: the `secrets` context can't be used directly inside an `if:`
-      # condition (GitHub Actions restriction) — it can only appear inside
-      # `run:`/`env:`. So we check it in a `run:` step and expose the result
-      # as a step output, then branch on THAT output in later `if:` checks.
-      - name: Check Android signing secrets
-        id: android_secrets
-        run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Decode release keystore
-        if: steps.android_secrets.outputs.configured == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ${{ env.PROJECT_DIR }}/android/app/release.keystore
-
-      - name: Build debug APK
-        working-directory: ${{ env.PROJECT_DIR }}/android
-        run: ./gradlew assembleDebug
-
-      - name: Build signed release APK
-        if: steps.android_secrets.outputs.configured == 'true'
-        working-directory: ${{ env.PROJECT_DIR }}/android
-        env:
-          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=release.keystore \
-            -Pandroid.injected.signing.store.password="$KS_PW" \
-            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$KEY_PW"
-
-      - name: Upload APK(s)
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          if-no-files-found: warn
-          path: |
-            ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/*.apk
-            ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/release/*.apk
-
   # ────────────────────────────────────────────────────────────────
   # iOS — Apple requires every app to be code-signed before it can run
   # on a real iPhone, even for personal side-loading. That signing
@@ -212,7 +105,7 @@ jobs:
           fi
           echo "OK: App.xcworkspace istnieje."
 
-      # Same reasoning as the Android job: `secrets` isn't allowed directly
+      # `secrets` isn't allowed directly inside a step-level `if:`
       # inside `if:`, so resolve it to a step output first.
       - name: Check iOS signing secrets
         id: ios_secrets

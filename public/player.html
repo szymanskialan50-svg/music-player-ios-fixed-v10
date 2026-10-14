@@ -449,15 +449,6 @@ input[type=search]::-webkit-search-results-decoration { -webkit-appearance:none;
         <h3 data-i18n="color_label">Accent Color</h3>
         <div class="settings-card"><div class="color-swatches" id="colorSwatches"></div></div>
       </div>
-      <div class="settings-group">
-        <div class="settings-card"><div class="settings-row">
-          <span class="settings-row-label">Lock screen buttons</span>
-          <select id="lockModeSelect" style="background:transparent;color:inherit;border:0;font:inherit;text-align:right">
-            <option value="tracks">Prev / Next</option>
-            <option value="skip">&#177;10 s</option>
-          </select>
-        </div></div>
-      </div>
       <div class="settings-group" style="margin-top:10px">
         <button id="clearDataBtn" class="secondary-btn full" style="color:#ff453a;border-color:rgba(255,69,58,0.3)" data-i18n="clear_data">Clear All Data</button>
       </div>
@@ -1132,26 +1123,6 @@ function initSettings(){
   sc.addEventListener('click',e=>{if(e.target.classList.contains('color-swatch'))applyColor(e.target.dataset.color);});
   document.getElementById('clearDataBtn').addEventListener('click',()=>{if(confirm(t('clear_confirm'))){lsClr();indexedDB.deleteDatabase('MusicPlayerDB');showToast(t('toast_cleared'));setTimeout(()=>location.reload(),1e3);}});
   
-  const lmSelect = document.getElementById('lockModeSelect');
-  if (lmSelect) {
-    let lm = 'tracks'; try { lm = localStorage.getItem('mp_lock_mode') || 'tracks'; } catch (e) {}
-    lmSelect.value = lm;
-    lmSelect.addEventListener('change', e => {
-      try { localStorage.setItem('mp_lock_mode', e.target.value); } catch (er) {}
-      applyLockMode();
-    });
-  }
-  const pfSelect = document.getElementById('profanitySelect');
-  if(pfSelect) {
-    pfSelect.value = getProfanitySetting();
-    pfSelect.addEventListener('change', e => {
-      localStorage.setItem('mp_profanity_setting', e.target.value);
-      renderLibrary(); renderPlaylists();
-      if(state.activeView==='playlist-detail'&&state.playlistDetailId) renderPLDetail(state.playlistDetailId);
-      const cur = getCur();
-      if (cur) { updNPInfo(cur); }
-    });
-  }
 
   syncThemeUI(); renderLangSheetList();
 }
@@ -1687,25 +1658,17 @@ Object.keys(I).forEach(code => {
 
 /* remove leftovers of the old custom API endpoint settings */
 initApiSettings = function(){};
-try { localStorage.removeItem('mp_api_base'); localStorage.removeItem('mp_yt_api_key'); } catch (e) {}
+try { localStorage.removeItem('mp_api_base'); localStorage.removeItem('mp_yt_api_key'); localStorage.removeItem('mp_lock_mode'); } catch (e) {}
 
 /* ===== Hidden YouTube audio engine ===== */
 let ytPlayer = null, ytApiLoading = false, ytPendingId = null, ytTick = null, ytActive = false;
 let isNativeYT = false;
 
-/* iPhone lock screen can show either "-10 s / +10 s" or "previous / next track" - not both. */
-function applyLockMode() {
-  try {
-    const NP = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.YouTubeCapacitorPlugin;
-    if (!NP || !NP.setLockScreenMode) return;
-    let lm = 'tracks'; try { lm = localStorage.getItem('mp_lock_mode') || 'tracks'; } catch (e) {}
-    NP.setLockScreenMode({ mode: lm }).catch(() => {});
-  } catch (e) {}
-}
+/* The iPhone lock screen always uses the standard control set (play/pause,
+   previous/next, position slider, stop) - there is no in-app switch for it. */
 function initNativeYT() {
   if (window.Capacitor && window.Capacitor.getPlatform() === 'ios' && window.Capacitor.Plugins.YouTubeCapacitorPlugin) {
     isNativeYT = true;
-    applyLockMode();
     const NativeYT = window.Capacitor.Plugins.YouTubeCapacitorPlugin;
     NativeYT.addListener('youtubeStateChange', (data) => {
       if (!ytActive) return;

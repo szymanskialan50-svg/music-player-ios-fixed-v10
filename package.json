@@ -11,10 +11,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "prepare:www": "node -e \"const fs=require('fs'); fs.mkdirSync('www',{recursive:true}); fs.copyFileSync('public/player.html','www/index.html');\"",
-    "cap:sync": "npm run prepare:www && npx cap sync"
+    "cap:sync": "npm run prepare:www && npx cap sync ios"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "capacitor-youtube-player": "file:./capacitor-youtube-player",
@@ -94,5 +93,5 @@
   "version": "1.0.0",
   "author": "x3lanix",
   "license": "UNLICENSED",
-  "description": "Music Player for iOS and Android"
+  "description": "Music Player for iOS"
 }

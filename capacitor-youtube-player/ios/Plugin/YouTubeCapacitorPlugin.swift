@@ -26,9 +26,6 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     private var loadStartedAt = Date.distantPast
 
     private var localMode = false
-    // Standard lock-screen controls by default (play/pause + previous/next, like every
-    // other music app). The settings screen can switch this to -10 s / +10 s.
-    private var lockSkipMode = false
     // Play/pause taps are de-bounced: only the final intent is applied to the player.
     private var pendingApply: DispatchWorkItem?
 
@@ -205,7 +202,14 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     }
 
     private func attachPlayerWebViewIfNeeded() {
-        guard let wv = player?.webView, wv.superview == nil else { return }
+        guard let wv = player?.webView else { return }
+        /* The lock screen / Control Center play button and the automatic switch to the
+           next track (both happen without a fresh touch on the page) count as playback
+           with no user gesture. WebKit blocks audible media in that case unless the
+           player is allowed to start on its own. Applied on every call - it must be in
+           place before the player page loads. */
+        wv.configuration.mediaTypesRequiringUserActionForPlayback = []
+        guard wv.superview == nil else { return }
         wv.isHidden = false
         wv.alpha = 0.01
         wv.isUserInteractionEnabled = false
@@ -406,16 +410,6 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
             self.pushNowPlaying()
             return .success
         }
-        cc.skipForwardCommand.preferredIntervals = [10]
-        cc.skipBackwardCommand.preferredIntervals = [10]
-        cc.skipForwardCommand.addTarget { [weak self] _ in
-            guard let self = self, !self.localMode else { return .success }
-            self.remoteSkip(10); return .success
-        }
-        cc.skipBackwardCommand.addTarget { [weak self] _ in
-            guard let self = self, !self.localMode else { return .success }
-            self.remoteSkip(-10); return .success
-        }
         cc.stopCommand.addTarget { [weak self] _ in
             guard let self = self, !self.localMode else { return .success }
             self.remotePause(); return .success
@@ -423,9 +417,10 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         applyLockScreenMode()
     }
 
-    /* The system only shows one set of buttons at a time: play/pause +/-10 s OR
-       play/pause + previous/next. Play, pause and the position slider stay enabled in
-       both modes so the lock screen behaves like a normal music app. */
+    /* One standard control set on the lock screen / Control Center, like every other
+       music app: play/pause, previous/next, position slider and stop. The +/-10 s
+       buttons are deliberately NOT enabled - they competed with previous/next and iOS
+       only shows one of the two, which is what made the buttons look broken. */
     private func applyLockScreenMode() {
         let cc = MPRemoteCommandCenter.shared()
         cc.playCommand.isEnabled = true
@@ -433,10 +428,10 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         cc.togglePlayPauseCommand.isEnabled = true
         cc.changePlaybackPositionCommand.isEnabled = true
         cc.stopCommand.isEnabled = true
-        cc.skipForwardCommand.isEnabled = lockSkipMode
-        cc.skipBackwardCommand.isEnabled = lockSkipMode
-        cc.nextTrackCommand.isEnabled = !lockSkipMode
-        cc.previousTrackCommand.isEnabled = !lockSkipMode
+        cc.nextTrackCommand.isEnabled = true
+        cc.previousTrackCommand.isEnabled = true
+        cc.skipForwardCommand.isEnabled = false
+        cc.skipBackwardCommand.isEnabled = false
     }
 
     private func remoteGate(_ key: String, window: TimeInterval = 0.2) -> Bool {
@@ -455,28 +450,6 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
 
     private func broadcastWebSession() {
         // Nothing needed here since we don't sync with WebSession anymore
-    }
-
-    private func remoteSkip(_ delta: Double) {
-        DispatchQueue.main.async {
-            guard self.remoteGate(delta > 0 ? "skip+" : "skip-") else { return }
-            var target = self.npElapsed + delta
-            if self.npDuration > 0 { target = min(target, max(0, self.npDuration - 1)) }
-            target = max(0, target)
-            Task { try? await self.player?.seek(to: Measurement(value: target, unit: .seconds), allowSeekAhead: true) }
-            self.npElapsed = target
-            self.pushNowPlaying()
-        }
-    }
-
-    @objc func setLockScreenMode(_ call: CAPPluginCall) {
-        let mode = call.getString("mode") ?? "tracks"
-        DispatchQueue.main.async {
-            self.lockSkipMode = (mode != "tracks")
-            self.applyLockScreenMode()
-            self.broadcastWebSession()
-            call.resolve()
-        }
     }
 
     private func remotePlay() {

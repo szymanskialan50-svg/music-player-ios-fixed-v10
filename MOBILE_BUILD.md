@@ -16,7 +16,7 @@ W ustawieniach: „Lock screen buttons” – ±10 s albo Prev/Next (iOS pokazuj
   `public/player.html`). Podświetlanie linii działa tylko dla tekstów z prawdziwymi znacznikami czasu, a gdy
   długość wersji z LRCLIB nie pasuje do długości utworu, tekst jest pokazywany jako zwykły.
 
-# Budowanie .apk i .ipa na GitHubie
+# Budowanie .ipa na GitHubie
 
 ## 0. Dlaczego appka "wyskakuje po minucie" / wraca stara wersja
 
@@ -54,7 +54,7 @@ zatrzymywać w tle mimo że kod "próbował" ją wznowić. Zobacz
 ## 1. Co zostało naprawione
 
 Wyszukiwarka muzyki (`public/player.html`) wcześniej odpytywała `/api/public/yt-search` —
-endpoint, który istniał tylko na serwerze Lovable. W spakowanej aplikacji (iOS/Android)
+endpoint, który istniał tylko na serwerze Lovable. W spakowanej aplikacji (iOS)
 nie ma żadnego serwera, więc każde wyszukiwanie kończyło się błędem
 „Wyszukiwanie nie powiodło się”.
 
@@ -77,8 +77,8 @@ Secrets/Environment variables). Jeśli go nie pamiętasz, wygenerujesz nowy w
 włącz tam „YouTube Data API v3” i utwórz klucz API.
 
 ⚠️ Ten klucz trafia do kodu aplikacji, więc technicznie każdy, kto rozpakuje
-.apk/.ipa, może go zobaczyć. W Google Cloud Console warto ograniczyć klucz
-(„Application restrictions”) do Twojego package name (Android) i bundle ID
+.ipa, może go zobaczyć. W Google Cloud Console warto ograniczyć klucz
+(„Application restrictions”) do Twojego bundle ID
 (iOS), żeby nikt inny go nie wykorzystał.
 
 Naprawiłem też etykietę zakładki „Szukaj muzyki”, żeby się nie zawijała do
@@ -95,16 +95,12 @@ dwóch linii na wąskich ekranach.
   Jeśli serwis nie ma tekstu danego utworu (częste dla remiksów/live), panel
   pokaże „Nie znaleziono tekstu.”
 
-## 2. Co robi workflow (`.github/workflows/build-mobile.yml`)
+## 2. Co robi workflow (`.github/workflows/main.yml`)
 
 Dodałem Capacitor (opakowuje `public/player.html` jako natywną appkę) oraz
-GitHub Actions, który buduje oba pliki automatycznie po pushu do `main`
+GitHub Actions, który buduje aplikację iOS automatycznie po pushu do `main`
 (albo ręcznie z zakładki **Actions → Build mobile apps → Run workflow**).
 
-- **Android (.apk)** — działa od razu, zero konfiguracji. Job zawsze tworzy
-  **debug APK** (instalowalny po włączeniu „Zainstaluj z nieznanych źródeł”).
-  Podpisany **release APK** powstanie dodatkowo, jeśli dodasz sekrety
-  (patrz niżej).
 - **iOS (.ipa)** — tu jest haczyk, którego nie da się ominąć: Apple wymaga
   podpisania **każdej** aplikacji certyfikatem z Twojego konta Apple
   (Developer Program albo nawet darmowe Apple ID), inaczej iPhone jej nie
@@ -113,16 +109,6 @@ GitHub Actions, który buduje oba pliki automatycznie po pushu do `main`
   instalacji.
 
 ## 3. Sekrety do dodania (Settings → Secrets and variables → Actions)
-
-### Android — podpisany release APK (opcjonalnie)
-| Sekret | Co to jest |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | Twój plik `.keystore`/`.jks` zakodowany w base64 (`base64 -i klucz.jks`) |
-| `ANDROID_KEYSTORE_PASSWORD` | hasło do keystore |
-| `ANDROID_KEY_ALIAS` | alias klucza |
-| `ANDROID_KEY_PASSWORD` | hasło do klucza |
-
-Nie masz keystore? Wygenerujesz go lokalnie: `keytool -genkey -v -keystore release.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000`.
 
 ### iOS — żeby dostać prawdziwy, instalowalny .ipa (wymagane)
 | Sekret | Co to jest |
@@ -141,7 +127,7 @@ własnych danych od Apple — nie ma w tym obejścia.
 ## 4. Gdzie znaleźć gotowe pliki
 
 Po zakończeniu workflow: zakładka **Actions** → wybrany bieg → sekcja
-**Artifacts** na dole strony → `android-apk` i `ios-build` do pobrania jako
+**Artifacts** na dole strony → `ios-build` do pobrania jako
 .zip.
 
 ## 5. Zmiana ikony aplikacji
@@ -159,9 +145,8 @@ ikony) i/lub zmień kolor w workflow.
 ```sh
 bun install
 npm run prepare:www      # kopiuje public/player.html -> www/index.html
-npx cap add android      # albo: npx cap add ios
-npx cap sync
-npx cap open android     # otwiera Android Studio
+npx cap add ios
+npx cap sync ios
 npx cap open ios         # otwiera Xcode (tylko na macOS)
 ```
 

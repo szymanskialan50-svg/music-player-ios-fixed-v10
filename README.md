@@ -1,6 +1,6 @@
 # Music Player
 
-A fast, minimal music player for iOS and Android with YouTube search,
+A fast, minimal music player for iOS with YouTube search,
 a local library, playlists, vinyl now-playing screen, synced lyrics,
 lock-screen controls, background playback and light / dark themes.
 
@@ -26,10 +26,10 @@ lock-screen controls, background playback and light / dark themes.
 ```sh
 npm install
 npm run prepare:www   # copies public/player.html -> www/index.html
-npx cap sync
+npx cap sync ios
 ```
 
-Details for building the `.ipa` / `.apk`: see `MOBILE_BUILD.md`.
+Details for building the `.ipa`: see `MOBILE_BUILD.md`.
 Set your own YouTube Data API key in `public/player.html` (`YOUTUBE_API_KEY`)
 and restrict it to your bundle ID in Google Cloud Console.
 

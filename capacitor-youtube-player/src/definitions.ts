@@ -11,8 +11,6 @@ export interface YouTubeCapacitorPlugin {
    * foreground, since the lock screen / Control Center may have changed it meanwhile.
    */
   getState(): Promise<{ playing: boolean; currentTime: number; duration: number; state: string }>;
-  /** 'skip' = lock screen shows -10s/+10s, 'tracks' = previous/next track. */
-  setLockScreenMode(options: { mode: 'skip' | 'tracks' }): Promise<void>;
   stop(): Promise<void>;
   seekTo(options: { seconds: number }): Promise<void>;
   setVolume(options: { volume: number }): Promise<void>;
