@@ -8,6 +8,7 @@ CAP_PLUGIN(YouTubeCapacitorPlugin, "YouTubeCapacitorPlugin",
            CAP_PLUGIN_METHOD(play, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(pause, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(toggle, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(getState, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(setLockScreenMode, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(stop, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(seekTo, CAPPluginReturnPromise);
