@@ -10,7 +10,7 @@ All trademarks and content belong to their respective owners.
 | Component | Author / owner | License | Where |
 |---|---|---|---|
 | **YouTubePlayer** (Swift) — a Swift rewrite based on *youtube-ios-player-helper* | derived from the work of Google Inc. / YouTube | Apache License 2.0 | `YouTubePlayer/`, `capacitor-youtube-player/ios/Plugin/` (full text: `YouTubePlayer/LICENSE`) |
-| **Capacitor** (`@capacitor/core`, `/ios`, `/android`) | Ionic / Drifty Co. | MIT | npm dependency |
+| **Capacitor** (`@capacitor/core`, `/ios`) | Ionic / Drifty Co. | MIT | npm dependency |
 
 The files under `YouTubePlayer/` and `capacitor-youtube-player/ios/Plugin/`
 were modified for this project (background playback, native queue hand-off,

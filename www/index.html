@@ -1641,7 +1641,7 @@ async function loadLyricsFor(tr){
 /* ===== SEARCH MUSIC — YOUTUBE DATA API v3 (called directly from the app, no backend) ===== */
 
 // Before shipping the app, restrict this key in Google Cloud Console to your
-// Android package name + SHA-1, and your iOS bundle ID, so it can't be reused by others.
+// iOS bundle ID, so it can't be reused by others.
 const YOUTUBE_API_KEY = 'AIzaSyD64Z4n8fyYGM-setU2CXwJT7eHkZ3WG2I';
 
 const SEARCH_I18N = {
@@ -1709,7 +1709,7 @@ function initNativeYT() {
       if (typeof updateLyricsSync === 'function') updateLyricsSync(c);
     });
   } else {
-    // Only the browser-based fallback (Android, or iOS without the native
+    // Only the browser-based fallback (the web build, or iOS without the native
     // plugin) actually needs the hidden YouTube IFrame player. On a real
     // iOS build the native plugin above handles all playback, so creating
     // this second, unused player was pure dead weight: it opened its own
@@ -2089,8 +2089,8 @@ function ytParseISODuration(iso){
 }
 
 /* Direct client-side call to the official YouTube Data API v3 — no custom
-   backend involved, so this works the same way inside the packaged iOS/Android
-   app as it did on the web. Needs YOUTUBE_API_KEY configured above. */
+   backend involved, so this works the same way inside the packaged iOS app as
+   it did on the web. Needs YOUTUBE_API_KEY configured above. */
 async function ytSearch(query){
   if (!navigator.onLine) throw new Error('offline');
   if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_DATA_API_KEY_HERE') throw new Error('no_key');
