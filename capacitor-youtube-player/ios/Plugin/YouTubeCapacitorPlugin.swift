@@ -26,7 +26,11 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     private var loadStartedAt = Date.distantPast
 
     private var localMode = false
-    private var lockSkipMode = true
+    // Standard lock-screen controls by default (play/pause + previous/next, like every
+    // other music app). The settings screen can switch this to -10 s / +10 s.
+    private var lockSkipMode = false
+    // Play/pause taps are de-bounced: only the final intent is applied to the player.
+    private var pendingApply: DispatchWorkItem?
 
     private var silenceStopWork: DispatchWorkItem?
 
@@ -412,11 +416,23 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
             guard let self = self, !self.localMode else { return .success }
             self.remoteSkip(-10); return .success
         }
+        cc.stopCommand.addTarget { [weak self] _ in
+            guard let self = self, !self.localMode else { return .success }
+            self.remotePause(); return .success
+        }
         applyLockScreenMode()
     }
 
+    /* The system only shows one set of buttons at a time: play/pause +/-10 s OR
+       play/pause + previous/next. Play, pause and the position slider stay enabled in
+       both modes so the lock screen behaves like a normal music app. */
     private func applyLockScreenMode() {
         let cc = MPRemoteCommandCenter.shared()
+        cc.playCommand.isEnabled = true
+        cc.pauseCommand.isEnabled = true
+        cc.togglePlayPauseCommand.isEnabled = true
+        cc.changePlaybackPositionCommand.isEnabled = true
+        cc.stopCommand.isEnabled = true
         cc.skipForwardCommand.isEnabled = lockSkipMode
         cc.skipBackwardCommand.isEnabled = lockSkipMode
         cc.nextTrackCommand.isEnabled = !lockSkipMode
@@ -454,7 +470,7 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     }
 
     @objc func setLockScreenMode(_ call: CAPPluginCall) {
-        let mode = call.getString("mode") ?? "skip"
+        let mode = call.getString("mode") ?? "tracks"
         DispatchQueue.main.async {
             self.lockSkipMode = (mode != "tracks")
             self.applyLockScreenMode()
@@ -613,6 +629,7 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
 
     @objc func play(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.cancelPendingApply()
             self.performPlay()
             call.resolve()
         }
@@ -620,18 +637,55 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
 
     @objc func pause(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.cancelPendingApply()
             self.performPause()
             call.resolve()
         }
+    }
+
+    /* Every tap used to be forwarded to the YouTube player straight away. Spamming the
+       play/pause button therefore queued several pause/play round-trips (each one is a
+       JavaScript evaluation inside the player's web view) and playback froze for a few
+       seconds while they drained. Taps are de-bounced now: only the last intent is
+       applied, and the answer to the web view is immediate so the UI never blocks. */
+    private func schedulePlaybackApply() {
+        pendingApply?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.pendingApply = nil
+            if self.intendedPlaybackState == "playing" { self.performPlay() } else { self.performPause() }
+        }
+        pendingApply = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: work)
+    }
+
+    private func cancelPendingApply() {
+        pendingApply?.cancel()
+        pendingApply = nil
     }
 
     @objc func toggle(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             if Date().timeIntervalSince(self.lastToggleAt) > 0.18 {
                 self.lastToggleAt = Date()
-                if self.intendedPlaybackState == "playing" { self.performPause() } else { self.performPlay() }
+                self.intendedPlaybackState = self.intendedPlaybackState == "playing" ? "paused" : "playing"
             }
+            self.schedulePlaybackApply()
             call.resolve(["playing": self.intendedPlaybackState == "playing"])
+        }
+    }
+
+    /* Current native state. The web view asks for it when the app comes back to the
+       foreground, because the lock screen / Control Center may have changed playback
+       while the page was frozen. */
+    @objc func getState(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            call.resolve([
+                "playing": self.intendedPlaybackState == "playing",
+                "currentTime": self.npElapsed,
+                "duration": self.cachedDuration > 0 ? self.cachedDuration : self.npDuration,
+                "state": self.lastNotifiedState
+            ])
         }
     }
 

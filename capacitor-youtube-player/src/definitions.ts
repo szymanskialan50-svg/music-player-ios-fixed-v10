@@ -6,6 +6,11 @@ export interface YouTubeCapacitorPlugin {
   pause(): Promise<void>;
   /** Play/pause decided by the native state; resolves with the new state. */
   toggle(): Promise<{ playing: boolean }>;
+  /**
+   * Playback state as the native player sees it. Used when the app returns to the
+   * foreground, since the lock screen / Control Center may have changed it meanwhile.
+   */
+  getState(): Promise<{ playing: boolean; currentTime: number; duration: number; state: string }>;
   /** 'skip' = lock screen shows -10s/+10s, 'tracks' = previous/next track. */
   setLockScreenMode(options: { mode: 'skip' | 'tracks' }): Promise<void>;
   stop(): Promise<void>;
