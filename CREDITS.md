@@ -7,6 +7,8 @@
 - **Google / YouTube** — IFrame Player API, Data API v3 and the original
   `youtube-ios-player-helper` that the native iOS player is based on.
 - **LRCLIB** and **lyrics.ovh** — song lyrics and synced timestamps.
+- **yt-dlp** and **SmartTubeIOS** — the InnerTube client identities and response
+  parsing used by the built-in audio extractor (`YouTubeService.swift`).
 - **Ionic Capacitor** team — the native app runtime.
 - Everyone who tested the app and reported bugs.
 

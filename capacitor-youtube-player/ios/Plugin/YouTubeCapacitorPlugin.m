@@ -7,6 +7,7 @@ CAP_PLUGIN(YouTubeCapacitorPlugin, "YouTubeCapacitorPlugin",
            CAP_PLUGIN_METHOD(load, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(loadStream, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(setStreamEndpoint, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(search, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(play, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(pause, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(toggle, CAPPluginReturnPromise);

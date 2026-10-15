@@ -2170,6 +2170,30 @@ function ytParseISODuration(iso){
    it did on the web. Needs YOUTUBE_API_KEY configured above. */
 async function ytSearch(query){
   if (!navigator.onLine) throw new Error('offline');
+  try {
+    return await ytSearchApi(query);
+  } catch (e) {
+    /* The Data API key is missing, over quota or blocked: fall back to the native
+       InnerTube search built into the iOS plugin (no key, no quota). */
+    return await ytSearchNative(query);
+  }
+}
+
+async function ytSearchNative(query){
+  const NP = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.YouTubeCapacitorPlugin;
+  if (!NP || !NP.search) throw new Error('no_native');
+  const r = await NP.search({ query: query });
+  return ((r && r.results) || []).map(x => ({
+    videoId: x.videoId,
+    title: x.title,
+    artist: x.artist,
+    duration: x.duration > 0 ? x.duration : null,
+    thumb: x.thumb || null
+  }));
+}
+
+async function ytSearchApi(query){
+  if (!navigator.onLine) throw new Error('offline');
   if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_DATA_API_KEY_HERE') throw new Error('no_key');
 
   const region = (navigator.language || 'en-US').split('-')[1] || '';

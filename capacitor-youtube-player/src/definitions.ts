@@ -15,6 +15,13 @@ export interface YouTubeCapacitorPlugin {
    * Pass an empty string to go back to the built-in extraction.
    */
   setStreamEndpoint(options: { url: string }): Promise<void>;
+  /**
+   * InnerTube search through the native extractor (no API key of your own, no quota).
+   * The page uses it as a fallback when the YouTube Data API key is missing or over quota.
+   */
+  search(options: { query: string }): Promise<{
+    results: Array<{ videoId: string; title: string; artist: string; duration: number; thumb: string }>;
+  }>;
   play(): Promise<void>;
   pause(): Promise<void>;
   /** Play/pause decided by the native state; resolves with the new state. */
