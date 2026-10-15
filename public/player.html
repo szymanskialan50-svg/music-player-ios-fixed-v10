@@ -199,17 +199,11 @@ h1,h2,h3,p { margin:0; }
 .np-close { position:absolute; top:calc(var(--safe-top) + 14px); left:20px; width:34px; height:34px; border-radius:50%; background:var(--surface); z-index:1; }
 .np-visual-wrap { flex:0 0 auto; width:100%; display:flex; align-items:center; justify-content:center; max-height:40vh; padding:6px 0; transition:flex-grow .4s var(--ease-smooth), max-height .4s var(--ease-smooth); position:relative; z-index:1; }
 .now-playing.no-lyrics .np-visual-wrap { flex:1 1 auto; max-height:60vh; }
-.vinyl-wrap { position:relative; width:min(68vw,270px); height:min(68vw,270px); border-radius:50%; animation: spin-record 9s linear infinite; animation-play-state: paused; will-change: transform; transform: translateZ(0); transition: width .5s var(--ease-smooth), height .5s var(--ease-smooth); }
-.vinyl-wrap.playing { animation-play-state: running; }
-.vinyl-disc { position:absolute; inset:0; border-radius:50%; background:
-    repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 6px),
-    radial-gradient(circle at 35% 30%, #2a2a2e, #0a0a0c 70%);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.55); }
-.vinyl-disc::before { display:none; }
-.vinyl-disc::after { content:''; position:absolute; inset:0; border-radius:50%; background:linear-gradient(125deg, rgba(255,255,255,0.14), transparent 38%, transparent 62%, rgba(255,255,255,0.05)); pointer-events:none; }
-.visualizer-mask { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:64%; height:64%; border-radius:50%; overflow:hidden; background:#111; box-shadow:0 4px 16px rgba(0,0,0,0.25); transition: box-shadow 0.35s var(--ease-smooth); }
-.visualizer { display:block; width:100%; height:100%; object-fit:cover; }
-@keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.art-wrap { position:relative; width:min(68vw,270px); height:min(68vw,270px); border-radius:16px; overflow:hidden; box-shadow:0 14px 34px rgba(0,0,0,0.55); transition: width .4s var(--ease-smooth), height .4s var(--ease-smooth), transform .4s var(--ease-smooth); will-change: transform; }
+.art-wrap.playing { transform:scale(1.02); }
+.art-img { display:block; width:100%; height:100%; object-fit:cover; transition: transform .6s var(--ease-smooth); }
+.art-wrap.playing .art-img { transform:scale(1.06); }
+.now-playing.no-lyrics .art-wrap { width:min(78vw,330px); height:min(78vw,330px); }
 .np-lyrics { position:relative; width:100%; max-width:340px; margin:2px auto 8px; flex:1 1 0; min-height:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); transform-origin:50% 100%; transition:flex-grow .35s var(--ease-smooth), opacity .25s ease, transform .35s var(--ease-smooth), margin .35s var(--ease-smooth); will-change: flex-grow, opacity, transform; }
 /* Animated show / hide of the lyrics panel (replaces the old instant display:none) */
 .np-lyrics.collapsed { flex:0 1 0; opacity:0; transform:translateY(28px) scale(.94); margin-top:0; margin-bottom:0; pointer-events:none; }
@@ -506,7 +500,7 @@ input[type=search]::-webkit-search-results-decoration { -webkit-appearance:none;
   <button id="npHideLyrics" class="icon-btn np-close" style="left:auto; right:20px;" aria-label="Toggle Lyrics">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   </button>
-  <div class="np-visual-wrap"><div id="vinylWrap" class="vinyl-wrap"><div class="vinyl-disc"></div><div class="visualizer-mask"><img id="npThumb" class="visualizer" src="" /></div></div></div><div class="np-info"><h2 id="npTitle" class="np-title">&#8212;</h2></div>
+  <div class="np-visual-wrap"><div id="artWrap" class="art-wrap"><img id="npArt" class="art-img" src="" /></div></div><div class="np-info"><h2 id="npTitle" class="np-title">&#8212;</h2></div>
   <div id="npLyrics" class="np-lyrics collapsed">
     <div id="npLyricsText" class="np-lyrics-text"></div>
   </div>
@@ -960,8 +954,8 @@ function applyProfanityFilter(text) {
 }
 
 /* ===== UI ===== */
-function updPlayUI(){let tn=document.getElementById('npThumb');if(tn){if(state.isPlaying)tn.classList.add('playing');else tn.classList.remove('playing');}
-  let vw=document.getElementById('vinylWrap');if(vw){vw.classList.toggle('playing',!!state.isPlaying);}
+function updPlayUI(){
+  let vw=document.getElementById('artWrap');if(vw){vw.classList.toggle('playing',!!state.isPlaying);}
   const pl=state.isPlaying;
   miniPlayPauseBtn.innerHTML=pl?pauseIcon():playIcon();
   npPlayPauseBtn.innerHTML=pl?pauseIcon(true):playIcon(true);
@@ -982,7 +976,7 @@ function updPlayUI(){let tn=document.getElementById('npThumb');if(tn){if(state.i
     }
   }
 }
-function updNPInfo(tr){document.getElementById('npTitle').textContent=applyProfanityFilter(tr.name);miniTitleEl.textContent=applyProfanityFilter(tr.name);monogram=firstLetter(tr.name);let npThumb=document.getElementById('npThumb');if(npThumb){npThumb.src=tr.thumb||(tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):'');}updateNpBg(tr.thumb || (tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):''));loadLyricsFor(tr);}
+function updNPInfo(tr){document.getElementById('npTitle').textContent=applyProfanityFilter(tr.name);miniTitleEl.textContent=applyProfanityFilter(tr.name);monogram=firstLetter(tr.name);let npArt=document.getElementById('npArt');if(npArt){npArt.src=tr.thumb||(tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):'');}updateNpBg(tr.thumb || (tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):''));loadLyricsFor(tr);}
 function openNP(){nowPlayingEl.classList.remove('hidden');requestAnimationFrame(()=>{nowPlayingEl.classList.add('open');});}
 function closeNP(){nowPlayingEl.classList.remove('open');setTimeout(()=>{nowPlayingEl.classList.add('hidden');},280);}
 function showMini(){if(miniPlayerEl.classList.contains('visible'))return;miniPlayerEl.classList.remove('hidden');requestAnimationFrame(()=>miniPlayerEl.classList.add('visible'));}
@@ -1651,14 +1645,7 @@ function updateLyricsSync(currentTime, force){
   txt.addEventListener('touchstart', pause, { passive: true });
   txt.addEventListener('touchmove', pause, { passive: true });
   txt.addEventListener('wheel', pause, { passive: true });
-  txt.addEventListener('click', e => {
-    const el = e.target && e.target.closest ? e.target.closest('.lyric-line') : null;
-    if (!el) return;
-    lyricsSyncTo(Array.prototype.indexOf.call(txt.children, el));
-  });
   let lp = null;
-  txt.addEventListener('touchstart', () => { clearTimeout(lp); lp = setTimeout(() => { lp = null; lyricsResetAdj(); }, 900); }, { passive: true });
-  ['touchmove', 'touchend', 'touchcancel'].forEach(ev => txt.addEventListener(ev, () => { clearTimeout(lp); }, { passive: true }));
   setInterval(() => { if (state.isPlaying && currentSyncedLyrics && !document.hidden) updateLyricsSync(undefined, false); }, 120);
 })();
 
@@ -1900,23 +1887,34 @@ function ytLoad(videoId){
         : Promise.resolve();
       ready.then(() => NP.loadStream({ videoId: videoId })).then(r => {
         if (r && r.ok) {
-          // Try to get initial state/duration faster
-          try { NP.getState && NP.getState().then(st => {
-            if (!st) return;
-            const cur = getCur();
-            if (cur) {
-              if (st.duration && Math.abs((cur.duration||0)-st.duration)>2) { cur.duration = Math.round(st.duration); saveTrackToDB(cur); updDurUI(cur.id); }
-              if (st.currentTime !== undefined) {
-                const d = cur.duration || st.duration || 0;
-                const c = st.currentTime || 0;
-                const p = d ? (c/d)*100 : 0;
-                npCurrentEl.textContent = fmt(c); npDurationEl.textContent = fmt(d);
-                npSeekEl.value = p; npSeekEl.style.setProperty('--fill', p+'%');
-                miniProgressEl.style.width = p+'%';
-                if (typeof updateLyricsSync === 'function') updateLyricsSync(c);
+          // Try to get initial state/duration faster - multiple attempts
+          const fetchState = () => {
+            try { NP.getState && NP.getState().then(st => {
+              if (!st) return;
+              const cur = getCur();
+              if (cur) {
+                if (st.duration && st.duration > 0) { 
+                  cur.duration = Math.round(st.duration); 
+                  saveTrackToDB(cur); 
+                  updDurUI(cur.id); 
+                  npDurationEl.textContent = fmt(cur.duration);
+                }
+                if (st.currentTime !== undefined) {
+                  const d = cur.duration || st.duration || 0;
+                  const c = st.currentTime || 0;
+                  const p = d ? (c/d)*100 : 0;
+                  npCurrentEl.textContent = fmt(c); 
+                  if (d > 0) npDurationEl.textContent = fmt(d);
+                  npSeekEl.value = p; npSeekEl.style.setProperty('--fill', p+'%');
+                  miniProgressEl.style.width = p+'%';
+                  if (typeof updateLyricsSync === 'function') updateLyricsSync(c);
+                }
               }
-            }
-          }).catch(()=>{}); } catch(e) {}
+            }).catch(()=>{}); } catch(e) {}
+          };
+          fetchState();
+          setTimeout(fetchState, 500);
+          setTimeout(fetchState, 1500);
           return;
         }
         NP.load({ videoId: videoId }).then(() => { NP.play(); });
