@@ -178,7 +178,7 @@ h1,h2,h3,p { margin:0; }
 .theme-badge { position:absolute; top:8px; right:8px; background:var(--accent); color:var(--accent-text); border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; opacity:0; transition:opacity 0.2s; }
 .theme-card.active .theme-badge { opacity:1; }
 /* Mini player */
-.mini-player { position:fixed; left:12px; right:12px; bottom:calc(var(--safe-bottom) + 12px); z-index:15; background:rgba(28,28,30,0.72); -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%); border:1px solid rgba(255,255,255,0.08); border-radius:18px; overflow:hidden; transform:translateY(140%); transition:transform 0.4s var(--ease-spring); }
+.mini-player { position:fixed; left:12px; right:12px; bottom:calc(var(--safe-bottom) + 12px); z-index:15; background:rgba(28,28,30,0.72); -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%); border:1px solid rgba(255,255,255,0.08); border-radius:18px; overflow:hidden; transform:translateY(140%); transition:transform 0.32s var(--ease-spring); }
 .mini-player.visible { transform:translateY(0); }
 .mini-progress-track { height:2px; background:rgba(255,255,255,0.12); }
 .mini-progress-fill { height:100%; width:0%; background:var(--accent); }
@@ -187,11 +187,17 @@ h1,h2,h3,p { margin:0; }
 .mini-title { flex:1; min-width:0; font-size:14.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mini-play { width:34px; height:34px; border-radius:50%; background:var(--accent); color:var(--accent-text); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 /* Now playing */
-.now-playing { position:fixed; inset:0; z-index:25; display:flex; flex-direction:column; align-items:center; background:radial-gradient(circle at 50% 18%,#16161a,#030304 72%); padding:calc(var(--safe-top) + 10px) 28px calc(var(--safe-bottom) + 24px); transform:translateY(100%); transition:transform 0.36s var(--ease-smooth); }
+.now-playing { position:fixed; inset:0; z-index:25; display:flex; flex-direction:column; align-items:center; background:radial-gradient(circle at 50% 18%,#16161a,#030304 72%); padding:calc(var(--safe-top) + 10px) 28px calc(var(--safe-bottom) + 24px); transform:translateY(100%); transition:transform 0.28s var(--ease-smooth); overflow:hidden; }
 .now-playing.open { transform:translateY(0); }
-.np-handle { width:36px; height:5px; border-radius:3px; background:rgba(255,255,255,0.22); margin-bottom:6px; }
-.np-close { position:absolute; top:calc(var(--safe-top) + 14px); left:20px; width:34px; height:34px; border-radius:50%; background:var(--surface); }
-.np-visual-wrap { flex:0 0 auto; width:100%; display:flex; align-items:center; justify-content:center; max-height:40vh; padding:6px 0; transition:flex-grow .5s var(--ease-smooth), max-height .5s var(--ease-smooth); }
+.np-bg, .np-bg-blur { position:absolute; inset:0; z-index:-2; transition:opacity 0.6s ease, transform 0.6s ease; }
+.np-bg { background:radial-gradient(circle at 50% 18%,#16161a,#030304 72%); }
+.np-bg-blur { z-index:-1; background-size:cover; background-position:center; filter:blur(40px) saturate(1.2); opacity:0; transform:scale(1.08); }
+.now-playing.has-bg .np-bg-blur { opacity:0.25; }
+.theme-light .np-bg { background:radial-gradient(circle at 50% 14%,#FFFFFF 0%,#EEEEF4 62%,#E4E4EC 100%); }
+.theme-light .now-playing.has-bg .np-bg-blur { opacity:0.18; }
+.np-handle { width:36px; height:5px; border-radius:3px; background:rgba(255,255,255,0.22); margin-bottom:6px; position:relative; z-index:1; }
+.np-close { position:absolute; top:calc(var(--safe-top) + 14px); left:20px; width:34px; height:34px; border-radius:50%; background:var(--surface); z-index:1; }
+.np-visual-wrap { flex:0 0 auto; width:100%; display:flex; align-items:center; justify-content:center; max-height:40vh; padding:6px 0; transition:flex-grow .4s var(--ease-smooth), max-height .4s var(--ease-smooth); position:relative; z-index:1; }
 .now-playing.no-lyrics .np-visual-wrap { flex:1 1 auto; max-height:60vh; }
 .vinyl-wrap { position:relative; width:min(68vw,270px); height:min(68vw,270px); border-radius:50%; animation: spin-record 9s linear infinite; animation-play-state: paused; will-change: transform; transform: translateZ(0); transition: width .5s var(--ease-smooth), height .5s var(--ease-smooth); }
 .vinyl-wrap.playing { animation-play-state: running; }
@@ -204,7 +210,7 @@ h1,h2,h3,p { margin:0; }
 .visualizer-mask { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:64%; height:64%; border-radius:50%; overflow:hidden; background:#111; box-shadow:0 4px 16px rgba(0,0,0,0.25); transition: box-shadow 0.35s var(--ease-smooth); }
 .visualizer { display:block; width:100%; height:100%; object-fit:cover; }
 @keyframes spin-record { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.np-lyrics { position:relative; width:100%; max-width:340px; margin:2px auto 8px; flex:1 1 0; min-height:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); transform-origin:50% 100%; transition:flex-grow .5s var(--ease-smooth), opacity .35s ease, transform .5s var(--ease-smooth), margin .5s var(--ease-smooth); }
+.np-lyrics { position:relative; width:100%; max-width:340px; margin:2px auto 8px; flex:1 1 0; min-height:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); transform-origin:50% 100%; transition:flex-grow .35s var(--ease-smooth), opacity .25s ease, transform .35s var(--ease-smooth), margin .35s var(--ease-smooth); will-change: flex-grow, opacity, transform; }
 /* Animated show / hide of the lyrics panel (replaces the old instant display:none) */
 .np-lyrics.collapsed { flex:0 1 0; opacity:0; transform:translateY(28px) scale(.94); margin-top:0; margin-bottom:0; pointer-events:none; }
 .np-lyrics-text { position:relative; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8% 4px 62%; text-align:center; font-size:16px; line-height:1.5; font-weight:600; color:#FFFFFF; white-space:normal; overscroll-behavior:contain; }
@@ -212,12 +218,12 @@ h1,h2,h3,p { margin:0; }
 .np-lyrics::-webkit-scrollbar, .np-lyrics-text::-webkit-scrollbar { display:none; }
 /* Karaoke-style lines. Only transform + opacity are animated (GPU, no re-layout),
    unlike the old font-size/padding transitions that re-flowed the whole list. */
-.lyric-line { padding:7px 6px; margin:0; font-size:21px; font-weight:800; line-height:1.28; color:rgba(255,255,255,0.42); opacity:.72; transform:scale(.8); transform-origin:50% 50%; transition:transform .45s var(--ease-smooth), color .35s var(--ease-smooth), opacity .35s var(--ease-smooth); }
-.lyric-line.enter { animation:lyricIn .6s var(--ease-smooth) both; animation-delay:calc(min(var(--i,0),12) * 55ms); }
+.lyric-line { padding:7px 6px; margin:0; font-size:21px; font-weight:800; line-height:1.28; color:rgba(255,255,255,0.42); opacity:.72; transform:scale(.8); transform-origin:50% 50%; transition:transform .28s var(--ease-smooth), color .22s var(--ease-smooth), opacity .22s var(--ease-smooth); will-change: transform, opacity, color; }
+.lyric-line.enter { animation:lyricIn .4s var(--ease-smooth) both; animation-delay:calc(min(var(--i,0),20) * 25ms); }
 .lyric-line.active { color:#FFFFFF; opacity:1; transform:scale(1); }
 .lyric-line.done { opacity:.4; }
 .np-lyrics-text.synced { display:block; }
-@keyframes lyricIn { from { opacity:0; transform:translateY(16px) scale(.74); } }
+@keyframes lyricIn { from { opacity:0; transform:translateY(12px) scale(.86); } to { opacity:1; transform:translateY(0) scale(1); } }
 @keyframes lyricPulse { 0%,100% { opacity:.45; } 50% { opacity:1; } }
 .now-playing.no-lyrics .vinyl-wrap { width:min(78vw,330px); height:min(78vw,330px); }
 #npHideLyrics { transition:opacity .3s, background .3s, transform .15s var(--ease-spring); }
@@ -446,6 +452,19 @@ input[type=search]::-webkit-search-results-decoration { -webkit-appearance:none;
       </div>
 
       <div class="settings-group">
+        <h3 data-i18n="api_label">Audio source (API)</h3>
+        <div class="settings-card">
+          <div class="settings-row" style="cursor:pointer" onclick="openSheet('apiSheet')">
+            <span style="font-size:15.5px;font-weight:500" data-i18n="api_label">Audio source (API)</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="settings-row-value" id="apiCurrentVal"></span>
+              <span style="color:var(--text-tertiary);font-size:13px">&#8250;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
         <h3 data-i18n="color_label">Accent Color</h3>
         <div class="settings-card"><div class="color-swatches" id="colorSwatches"></div></div>
       </div>
@@ -478,6 +497,8 @@ input[type=search]::-webkit-search-results-decoration { -webkit-appearance:none;
 </div>
 
 <div id="nowPlaying" class="now-playing no-lyrics hidden">
+  <div class="np-bg" id="npBg"></div>
+  <div class="np-bg-blur" id="npBgBlur"></div>
   <div class="np-handle"></div>
   <button id="npClose" class="icon-btn np-close" aria-label="Close">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg>
@@ -587,6 +608,16 @@ input[type=search]::-webkit-search-results-decoration { -webkit-appearance:none;
   <button class="secondary-btn full" onclick="closeSheet('themeSheet')" data-i18n="btn_done">Done</button>
 </div>
 
+<!-- Audio source (own extraction API) sheet -->
+<div id="apiSheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <h3 class="sheet-title" data-i18n="api_label">Audio source (API)</h3>
+  <p style="font-size:13.5px;color:var(--text-tertiary);margin:0 0 12px" data-i18n="api_sub">Run extraction through your own endpoint</p>
+  <input id="apiEndpointInput" class="text-input" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://your-server/stream?id=...">
+  <button class="secondary-btn full" id="apiSaveBtn" data-i18n="btn_save" style="margin-bottom:8px">Save</button>
+  <button class="secondary-btn full" id="apiResetBtn" data-i18n="btn_reset">Use built-in</button>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <!-- iOS: playsinline + webkit-playsinline are critical for background audio -->
@@ -606,8 +637,8 @@ const LANGS = [
   {code:'it', flag:'\uD83C\uDDEE\uD83C\uDDF9', name:'Italian',   native:'Italiano'},
 ];
 const I = {
-  en:{tab_library:'Library',tab_playlists:'Playlists',tab_settings:'Settings',add_music:'Add Music',new_playlist:'New Playlist',add_tracks:'Add tracks',empty_lib_title:'No music',empty_lib_sub:'Add your first track to start listening.',empty_pl_title:'No playlists',empty_pl_sub:'Create a playlist to organize your music.',empty_pl_detail_title:'Playlist is empty',empty_pl_detail_sub:'Add tracks from your library.',lang_label:'Language',color_label:'Accent Color',clear_data:'Clear All Data',appearance_label:'Appearance',theme_label:'Theme',theme_dark:'Dark',theme_light:'Light',theme_system:'System',icon_label:'Track Icon',icon_letter:'First Letter',icon_thumb:'YouTube Thumbnail',from_device:'From Device (Local Files)',from_yt:'From YouTube (Link)',yt_title:'Download from YouTube',yt_placeholder:'https://www.youtube.com/watch?v=...',btn_cancel:'Cancel',btn_add:'Add',btn_create:'Create',btn_done:'Done',btn_back:'Back',btn_open:'Open link',btn_download:'Download',downloading:'Downloading in background…',yt_processing:'Fetching file…',yt_error_empty:'Paste a YouTube link to continue',yt_error_invalid:'Please enter a valid YouTube link',yt_error_network:'No internet connection',yt_error_server:'Something went wrong. Please try again.',yt_error_generic:'Download failed. Please try again.',toast_yt:'Opening YouTube service…',toast_yt_added:'Added from YouTube',toast_added:'Track added',toast_added_pl:'Tracks added',toast_pl_created:'Playlist created',toast_deleted:'Deleted',toast_cleared:'All data cleared',opt_add_pl:'Add to playlist',opt_rem_pl:'Remove from playlist',opt_rem_lib:'Remove from library',opt_play:'Play',opt_del_pl:'Delete playlist',empty_list:'Empty list',upload_playlist:'Upload playlist',upload_playlist_sub:'Paste a YouTube playlist link',upload_playlist_default:'YouTube playlist',btn_import:'Import',toast_imported_playlist:'Playlist imported',sl_t:'Choose Language',sl_s:'Pick your preferred language',st_t:'Appearance',st_s:'Choose how the app looks',s_cont:'Continue →',s_start:"Let's Go!"},
-  pl:{tab_library:'Biblioteka',tab_playlists:'Playlisty',tab_settings:'Ustawienia',add_music:'Dodaj muzykę',new_playlist:'Nowa playlista',add_tracks:'Dodaj utwory',empty_lib_title:'Brak muzyki',empty_lib_sub:'Dodaj swój pierwszy utwór, aby zacząć słuchać.',empty_pl_title:'Brak playlist',empty_pl_sub:'Utwórz playlistę, aby uporządkować swoją muzykę.',empty_pl_detail_title:'Playlista jest pusta',empty_pl_detail_sub:'Dodaj utwory ze swojej biblioteki.',lang_label:'Język',color_label:'Kolor wiodący',clear_data:'Usuń wszystkie dane',appearance_label:'Wygląd',theme_label:'Motyw',theme_dark:'Ciemny',theme_light:'Jasny',theme_system:'Systemowy',icon_label:'Ikona Utworu',icon_letter:'Pierwsza Litera',icon_thumb:'Miniaturka YouTube',from_device:'Z urządzenia (pliki)',from_yt:'Z YouTube (Link)',yt_title:'Pobierz z YouTube',yt_placeholder:'Wklej link do filmu…',btn_cancel:'Anuluj',btn_add:'Dodaj',btn_create:'Utwórz',btn_done:'Gotowe',btn_back:'Wstecz',btn_open:'Otwórz link',btn_download:'Pobierz',downloading:'Pobieranie w tle...',yt_processing:'Pobieranie pliku…',yt_error_empty:'Wklej link do YouTube, aby kontynuować',yt_error_invalid:'Wprowadź prawidłowy link do YouTube',yt_error_network:'Brak połączenia z internetem',yt_error_server:'Coś poszło nie tak. Spróbuj ponownie.',yt_error_generic:'Pobieranie nie powiodło się. Spróbuj ponownie.',toast_yt:'Otwieranie serwisu YouTube…',toast_yt_added:'Dodano z YouTube',toast_added:'Dodano utwór',toast_added_pl:'Dodano utwory',toast_pl_created:'Utworzono playlistę',toast_deleted:'Usunięto',toast_cleared:'Usunięto dane',opt_add_pl:'Dodaj do playlisty',opt_rem_pl:'Usuń z playlisty',opt_rem_lib:'Usuń z biblioteki',opt_play:'Odtwórz',opt_del_pl:'Usuń playlistę',empty_list:'Pusta lista',upload_playlist:'Wgraj playlistę',upload_playlist_sub:'Wklej link do playlisty YouTube',upload_playlist_default:'Playlista z YouTube',btn_import:'Importuj',toast_imported_playlist:'Zaimportowano playlistę',sl_t:'Wybierz Język',sl_s:'Wybierz swój preferowany język',st_t:'Wygląd',st_s:'Wybierz jak wygląda aplikacja',s_cont:'Dalej →',s_start:'Zaczynamy!'},
+  en:{tab_library:'Library',tab_playlists:'Playlists',tab_settings:'Settings',add_music:'Add Music',new_playlist:'New Playlist',add_tracks:'Add tracks',empty_lib_title:'No music',empty_lib_sub:'Add your first track to start listening.',empty_pl_title:'No playlists',empty_pl_sub:'Create a playlist to organize your music.',empty_pl_detail_title:'Playlist is empty',empty_pl_detail_sub:'Add tracks from your library.',lang_label:'Language',color_label:'Accent Color',clear_data:'Clear All Data',appearance_label:'Appearance',theme_label:'Theme',theme_dark:'Dark',theme_light:'Light',theme_system:'System',icon_label:'Track Icon',icon_letter:'First Letter',icon_thumb:'YouTube Thumbnail',from_device:'From Device (Local Files)',from_yt:'From YouTube (Link)',yt_title:'Download from YouTube',yt_placeholder:'https://www.youtube.com/watch?v=...',btn_cancel:'Cancel',btn_add:'Add',btn_create:'Create',btn_done:'Done',btn_back:'Back',btn_open:'Open link',btn_download:'Download',downloading:'Downloading in background…',yt_processing:'Fetching file…',yt_error_empty:'Paste a YouTube link to continue',yt_error_invalid:'Please enter a valid YouTube link',yt_error_network:'No internet connection',yt_error_server:'Something went wrong. Please try again.',yt_error_generic:'Download failed. Please try again.',toast_yt:'Opening YouTube service…',toast_yt_added:'Added from YouTube',toast_added:'Track added',toast_added_pl:'Tracks added',toast_pl_created:'Playlist created',toast_deleted:'Deleted',toast_cleared:'All data cleared',opt_add_pl:'Add to playlist',opt_rem_pl:'Remove from playlist',opt_rem_lib:'Remove from library',opt_play:'Play',opt_del_pl:'Delete playlist',empty_list:'Empty list',upload_playlist:'Upload playlist',upload_playlist_sub:'Paste a YouTube playlist link',upload_playlist_default:'YouTube playlist',btn_import:'Import',toast_imported_playlist:'Playlist imported',sl_t:'Choose Language',sl_s:'Pick your preferred language',st_t:'Appearance',st_s:'Choose how the app looks',s_cont:'Continue →',s_start:"Let's Go!",api_label:'Audio source (API)',api_sub:'Run extraction through your own endpoint',api_custom:'Custom',api_builtin:'Built-in',btn_save:'Save',btn_reset:'Use built-in',toast_api_saved:'Audio source saved',toast_api_reset:'Using built-in source'},
+  pl:{tab_library:'Biblioteka',tab_playlists:'Playlisty',tab_settings:'Ustawienia',add_music:'Dodaj muzykę',new_playlist:'Nowa playlista',add_tracks:'Dodaj utwory',empty_lib_title:'Brak muzyki',empty_lib_sub:'Dodaj swój pierwszy utwór, aby zacząć słuchać.',empty_pl_title:'Brak playlist',empty_pl_sub:'Utwórz playlistę, aby uporządkować swoją muzykę.',empty_pl_detail_title:'Playlista jest pusta',empty_pl_detail_sub:'Dodaj utwory ze swojej biblioteki.',lang_label:'Język',color_label:'Kolor wiodący',clear_data:'Usuń wszystkie dane',appearance_label:'Wygląd',theme_label:'Motyw',theme_dark:'Ciemny',theme_light:'Jasny',theme_system:'Systemowy',icon_label:'Ikona Utworu',icon_letter:'Pierwsza Litera',icon_thumb:'Miniaturka YouTube',from_device:'Z urządzenia (pliki)',from_yt:'Z YouTube (Link)',yt_title:'Pobierz z YouTube',yt_placeholder:'Wklej link do filmu…',btn_cancel:'Anuluj',btn_add:'Dodaj',btn_create:'Utwórz',btn_done:'Gotowe',btn_back:'Wstecz',btn_open:'Otwórz link',btn_download:'Pobierz',downloading:'Pobieranie w tle...',yt_processing:'Pobieranie pliku…',yt_error_empty:'Wklej link do YouTube, aby kontynuować',yt_error_invalid:'Wprowadź prawidłowy link do YouTube',yt_error_network:'Brak połączenia z internetem',yt_error_server:'Coś poszło nie tak. Spróbuj ponownie.',yt_error_generic:'Pobieranie nie powiodło się. Spróbuj ponownie.',toast_yt:'Otwieranie serwisu YouTube…',toast_yt_added:'Dodano z YouTube',toast_added:'Dodano utwór',toast_added_pl:'Dodano utwory',toast_pl_created:'Utworzono playlistę',toast_deleted:'Usunięto',toast_cleared:'Usunięto dane',opt_add_pl:'Dodaj do playlisty',opt_rem_pl:'Usuń z playlisty',opt_rem_lib:'Usuń z biblioteki',opt_play:'Odtwórz',opt_del_pl:'Usuń playlistę',empty_list:'Pusta lista',upload_playlist:'Wgraj playlistę',upload_playlist_sub:'Wklej link do playlisty YouTube',upload_playlist_default:'Playlista z YouTube',btn_import:'Importuj',toast_imported_playlist:'Zaimportowano playlistę',sl_t:'Wybierz Język',sl_s:'Wybierz swój preferowany język',st_t:'Wygląd',st_s:'Wybierz jak wygląda aplikacja',s_cont:'Dalej →',s_start:'Zaczynamy!',api_label:'Źródło audio (API)',api_sub:'Ekstrakcja przez Twój własny endpoint',api_custom:'Własne',api_builtin:'Wbudowane',btn_save:'Zapisz',btn_reset:'Wbudowane',toast_api_saved:'Zapisano źródło audio',toast_api_reset:'Wrócono do wbudowanego źródła'},
   fr:{tab_library:'Bibliothèque',tab_playlists:'Playlists',tab_settings:'Paramètres',add_music:'Ajouter musique',new_playlist:'Nouvelle playlist',add_tracks:'Ajouter pistes',empty_lib_title:'Aucune musique',empty_lib_sub:'Ajoutez votre première piste pour commencer.',empty_pl_title:'Aucune playlist',empty_pl_sub:'Créez une playlist pour organiser votre musique.',empty_pl_detail_title:'Playlist vide',empty_pl_detail_sub:'Ajoutez des pistes depuis votre bibliothèque.',lang_label:'Langue',color_label:"Couleur d'accent",clear_data:'Effacer toutes les données',appearance_label:'Apparence',theme_label:'Thème',theme_dark:'Sombre',theme_light:'Clair',theme_system:'Système',from_device:"Depuis l'appareil",from_yt:'Depuis YouTube (lien)',yt_title:'Télécharger de YouTube',yt_placeholder:'https://www.youtube.com/watch?v=...',btn_cancel:'Annuler',btn_add:'Ajouter',btn_create:'Créer',btn_done:'Terminé',btn_back:'Retour',btn_open:'Ouvrir le lien',btn_download:'Télécharger',downloading:'Téléchargement en arrière-plan…',yt_processing:'Récupération du fichier…',yt_error_empty:'Collez un lien YouTube pour continuer',yt_error_invalid:'Veuillez saisir un lien YouTube valide',yt_error_network:'Aucune connexion Internet',yt_error_server:"Une erreur s'est produite. Réessayez.",yt_error_generic:'Échec du téléchargement. Réessayez.',toast_yt:'Ouverture du service…',toast_yt_added:'Ajouté depuis YouTube',toast_added:'Piste ajoutée',toast_added_pl:'Pistes ajoutées',toast_pl_created:'Playlist créée',toast_deleted:'Supprimé',toast_cleared:'Données effacées',opt_add_pl:'À la playlist',opt_rem_pl:'Retirer de la playlist',opt_rem_lib:'Retirer de la bibliothèque',opt_play:'Lire',opt_del_pl:'Supprimer playlist',empty_list:'Liste vide',upload_playlist:'Importer une playlist',upload_playlist_sub:'Collez un lien de playlist YouTube',upload_playlist_default:'Playlist YouTube',btn_import:'Importer',toast_imported_playlist:'Playlist importée',sl_t:'Choisir la langue',sl_s:'Choisissez votre langue préférée',st_t:'Apparence',st_s:"Choisissez l'aspect de l'application",s_cont:'Continuer →',s_start:"C'est parti !"},
   es:{tab_library:'Biblioteca',tab_playlists:'Playlists',tab_settings:'Ajustes',add_music:'Añadir música',new_playlist:'Nueva playlist',add_tracks:'Añadir pistas',empty_lib_title:'Sin música',empty_lib_sub:'Añade tu primera pista para empezar.',empty_pl_title:'Sin playlists',empty_pl_sub:'Crea una playlist para organizar tu música.',empty_pl_detail_title:'Playlist vacía',empty_pl_detail_sub:'Añade pistas desde tu biblioteca.',lang_label:'Idioma',color_label:'Color de acento',clear_data:'Borrar todos los datos',appearance_label:'Apariencia',theme_label:'Tema',theme_dark:'Oscuro',theme_light:'Claro',theme_system:'Sistema',from_device:'Desde el dispositivo',from_yt:'Desde YouTube (enlace)',yt_title:'Descargar de YouTube',yt_placeholder:'https://www.youtube.com/watch?v=...',btn_cancel:'Cancelar',btn_add:'Añadir',btn_create:'Crear',btn_done:'Listo',btn_back:'Atrás',btn_open:'Abrir enlace',btn_download:'Descargar',downloading:'Descargando en segundo plano…',yt_processing:'Obteniendo archivo…',yt_error_empty:'Pega un enlace de YouTube para continuar',yt_error_invalid:'Introduce un enlace de YouTube válido',yt_error_network:'Sin conexión a Internet',yt_error_server:'Algo salió mal. Inténtalo de nuevo.',yt_error_generic:'Error al descargar. Inténtalo de nuevo.',toast_yt:'Abriendo servicio…',toast_yt_added:'Añadido desde YouTube',toast_added:'Pista añadida',toast_added_pl:'Pistas añadidas',toast_pl_created:'Playlist creada',toast_deleted:'Eliminado',toast_cleared:'Datos borrados',opt_add_pl:'Añadir a playlist',opt_rem_pl:'Quitar de playlist',opt_rem_lib:'Quitar de biblioteca',opt_play:'Reproducir',opt_del_pl:'Eliminar playlist',empty_list:'Lista vacía',upload_playlist:'Subir playlist',upload_playlist_sub:'Pega un enlace de playlist de YouTube',upload_playlist_default:'Playlist de YouTube',btn_import:'Importar',toast_imported_playlist:'Playlist importada',sl_t:'Elige el idioma',sl_s:'Selecciona tu idioma preferido',st_t:'Apariencia',st_s:'Elige cómo se ve la aplicación',s_cont:'Continuar →',s_start:'¡Empezar!'},
   de:{tab_library:'Bibliothek',tab_playlists:'Wiedergabelisten',tab_settings:'Einstellungen',add_music:'Musik hinzufügen',new_playlist:'Neue Wiedergabeliste',add_tracks:'Titel hinzufügen',empty_lib_title:'Keine Musik',empty_lib_sub:'Füge deinen ersten Titel hinzu.',empty_pl_title:'Keine Wiedergabelisten',empty_pl_sub:'Erstelle eine Wiedergabeliste.',empty_pl_detail_title:'Leere Wiedergabeliste',empty_pl_detail_sub:'Füge Titel aus deiner Bibliothek hinzu.',lang_label:'Sprache',color_label:'Akzentfarbe',clear_data:'Alle Daten löschen',appearance_label:'Darstellung',theme_label:'Design',theme_dark:'Dunkel',theme_light:'Hell',theme_system:'System',from_device:'Vom Gerät',from_yt:'Von YouTube (Link)',yt_title:'Von YouTube herunterladen',yt_placeholder:'https://www.youtube.com/watch?v=...',btn_cancel:'Abbrechen',btn_add:'Hinzufügen',btn_create:'Erstellen',btn_done:'Fertig',btn_back:'Zurück',btn_open:'Link öffnen',btn_download:'Herunterladen',downloading:'Herunterladen im Hintergrund…',yt_processing:'Datei wird abgerufen…',yt_error_empty:'Füge einen YouTube-Link ein, um fortzufahren',yt_error_invalid:'Bitte gib einen gültigen YouTube-Link ein',yt_error_network:'Keine Internetverbindung',yt_error_server:'Etwas ist schiefgelaufen. Bitte versuche es erneut.',yt_error_generic:'Download fehlgeschlagen. Bitte versuche es erneut.',toast_yt:'YouTube-Dienst wird geöffnet…',toast_yt_added:'Von YouTube hinzugefügt',toast_added:'Titel hinzugefügt',toast_added_pl:'Titel hinzugefügt',toast_pl_created:'Wiedergabeliste erstellt',toast_deleted:'Gelöscht',toast_cleared:'Daten gelöscht',opt_add_pl:'Zur Wiedergabeliste',opt_rem_pl:'Aus Wiedergabeliste entfernen',opt_rem_lib:'Aus Bibliothek entfernen',opt_play:'Abspielen',opt_del_pl:'Wiedergabeliste löschen',empty_list:'Leere Liste',upload_playlist:'Playlist hochladen',upload_playlist_sub:'Füge einen YouTube-Playlist-Link ein',upload_playlist_default:'YouTube-Playlist',btn_import:'Importieren',toast_imported_playlist:'Wiedergabeliste importiert',sl_t:'Sprache wählen',sl_s:'Wähle deine bevorzugte Sprache',st_t:'Darstellung',st_s:'Wähle das Aussehen der App',s_cont:'Weiter →',s_start:"Los geht's!"},
@@ -951,9 +982,9 @@ function updPlayUI(){let tn=document.getElementById('npThumb');if(tn){if(state.i
     }
   }
 }
-function updNPInfo(tr){document.getElementById('npTitle').textContent=applyProfanityFilter(tr.name);miniTitleEl.textContent=applyProfanityFilter(tr.name);monogram=firstLetter(tr.name);let npThumb=document.getElementById('npThumb');if(npThumb){npThumb.src=tr.thumb||(tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):'');}loadLyricsFor(tr);}
+function updNPInfo(tr){document.getElementById('npTitle').textContent=applyProfanityFilter(tr.name);miniTitleEl.textContent=applyProfanityFilter(tr.name);monogram=firstLetter(tr.name);let npThumb=document.getElementById('npThumb');if(npThumb){npThumb.src=tr.thumb||(tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):'');}updateNpBg(tr.thumb || (tr.videoId?('https://i.ytimg.com/vi/'+tr.videoId+'/hqdefault.jpg'):''));loadLyricsFor(tr);}
 function openNP(){nowPlayingEl.classList.remove('hidden');requestAnimationFrame(()=>{nowPlayingEl.classList.add('open');});}
-function closeNP(){nowPlayingEl.classList.remove('open');setTimeout(()=>{nowPlayingEl.classList.add('hidden');},360);}
+function closeNP(){nowPlayingEl.classList.remove('open');setTimeout(()=>{nowPlayingEl.classList.add('hidden');},280);}
 function showMini(){if(miniPlayerEl.classList.contains('visible'))return;miniPlayerEl.classList.remove('hidden');requestAnimationFrame(()=>miniPlayerEl.classList.add('visible'));}
 function hideMini(){miniPlayerEl.classList.remove('visible');setTimeout(()=>miniPlayerEl.classList.add('hidden'),300);}
 function openSheet(id){openSheetId=id;overlayEl.classList.remove('hidden');document.getElementById(id).classList.remove('hidden');requestAnimationFrame(()=>{overlayEl.classList.add('visible');document.getElementById(id).classList.add('open');});}
@@ -966,6 +997,22 @@ function showActionSheet(title,opts){
   openSheet('actionSheet');
 }
 function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.remove('hidden');requestAnimationFrame(()=>el.classList.add('visible'));setTimeout(()=>{el.classList.remove('visible');setTimeout(()=>el.classList.add('hidden'),300);},2200);}
+
+function updateNpBg(url){
+  const bg = document.getElementById('npBgBlur');
+  if (!bg) return;
+  if (!url) { bg.style.backgroundImage='none'; nowPlayingEl.classList.remove('has-bg'); return; }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    bg.style.backgroundImage = `url(${url})`;
+    nowPlayingEl.classList.add('has-bg');
+  };
+  img.onerror = () => {
+    bg.style.backgroundImage='none'; nowPlayingEl.classList.remove('has-bg');
+  };
+  img.src = url;
+}
 
 
 /* ===== RENDER ===== */
@@ -1124,7 +1171,40 @@ function initSettings(){
   document.getElementById('clearDataBtn').addEventListener('click',()=>{if(confirm(t('clear_confirm'))){lsClr();indexedDB.deleteDatabase('MusicPlayerDB');showToast(t('toast_cleared'));setTimeout(()=>location.reload(),1e3);}});
   
 
+  /* Own extraction endpoint. Empty means the built-in YouTube extraction; anything else
+     is handed to the native plugin, which calls that URL for every track and quietly
+     falls back to the built-in extraction when it does not answer with a stream URL. */
+  const apiIn=document.getElementById('apiEndpointInput');
+  const apiVal=document.getElementById('apiCurrentVal');
+  const savedApi=lsGet('mp_stream_api')||'';
+  if(apiIn)apiIn.value=savedApi;
+  if(apiVal)apiVal.textContent=t(savedApi?'api_custom':'api_builtin');
+  function applyStreamApi(){
+    const v=(apiIn?apiIn.value:'').trim();
+    if(v)lsSet('mp_stream_api',v);else{try{localStorage.removeItem('mp_stream_api');}catch(e){}}
+    if(apiVal)apiVal.textContent=t(v?'api_custom':'api_builtin');
+    pushStreamEndpoint(v);
+    if(openSheetId==='apiSheet')closeSheet('apiSheet');
+    showToast(v?t('toast_api_saved'):t('toast_api_reset'));
+  }
+  const apiSaveBtn=document.getElementById('apiSaveBtn');
+  if(apiSaveBtn)apiSaveBtn.addEventListener('click',applyStreamApi);
+  const apiResetBtn=document.getElementById('apiResetBtn');
+  if(apiResetBtn)apiResetBtn.addEventListener('click',()=>{if(apiIn)apiIn.value='';applyStreamApi();});
+  pushStreamEndpoint(savedApi);
+
   syncThemeUI(); renderLangSheetList();
+}
+
+/* ===== OWN EXTRACTION ENDPOINT ===== */
+let lastPushedApi=null;
+function pushStreamEndpoint(url){
+  const value=url||'';
+  lastPushedApi=value;
+  try{
+    const NP=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.YouTubeCapacitorPlugin;
+    if(NP&&NP.setStreamEndpoint)NP.setStreamEndpoint({url:value});
+  }catch(e){}
 }
 
 /* ===== BOOT ===== */
@@ -1483,31 +1563,36 @@ function lyricsResetAdj(){
 function renderLyricsPanel(data){
   const txt = document.getElementById('npLyricsText');
   if (!txt) return;
-  lastActiveLyricIndex = -1;
-  txt.classList.remove('muted');
-  const plain = data && data.plain ? String(data.plain).trim() : '';
-  const real = data && data.synced && data.synced.length ? data.synced : null;
-  if (real) { currentSyncedLyrics = real; lyricsEstimated = false; }
-  else {
-    const est = ALLOW_ESTIMATED_LYRICS ? buildEstimatedLines(plain) : null;
-    currentSyncedLyrics = est; lyricsEstimated = !!est;
-  }
-  if (currentSyncedLyrics) {
-    txt.classList.add('synced');
-    txt.innerHTML = currentSyncedLyrics.map((l, i) => `<div class="lyric-line${i < 14 ? ' enter' : ''}" style="--i:${i}">${esc(applyProfanityFilter(l.text))}</div>`).join('');
-    txt.scrollTop = 0;
-    lyricsHasContent = true;
-  } else if (plain) {
-    txt.classList.remove('synced');
-    txt.textContent = applyProfanityFilter(plain);
-    lyricsHasContent = true;
-  } else {
-    txt.classList.remove('synced');
-    txt.textContent = '';
-    lyricsHasContent = false;
-  }
-  applyLyricsVisibility();
-  updateLyricsSync(lastPlaybackTime, true);
+  txt.style.transition = 'opacity 0.18s ease';
+  txt.style.opacity = '0.6';
+  setTimeout(() => {
+    lastActiveLyricIndex = -1;
+    txt.classList.remove('muted');
+    const plain = data && data.plain ? String(data.plain).trim() : '';
+    const real = data && data.synced && data.synced.length ? data.synced : null;
+    if (real) { currentSyncedLyrics = real; lyricsEstimated = false; }
+    else {
+      const est = ALLOW_ESTIMATED_LYRICS ? buildEstimatedLines(plain) : null;
+      currentSyncedLyrics = est; lyricsEstimated = !!est;
+    }
+    if (currentSyncedLyrics) {
+      txt.classList.add('synced');
+      txt.innerHTML = currentSyncedLyrics.map((l, i) => `<div class="lyric-line${i < 20 ? ' enter' : ''}" style="--i:${i}">${esc(applyProfanityFilter(l.text))}</div>`).join('');
+      txt.scrollTop = 0;
+      lyricsHasContent = true;
+    } else if (plain) {
+      txt.classList.remove('synced');
+      txt.textContent = applyProfanityFilter(plain);
+      lyricsHasContent = true;
+    } else {
+      txt.classList.remove('synced');
+      txt.textContent = '';
+      lyricsHasContent = false;
+    }
+    applyLyricsVisibility();
+    updateLyricsSync(lastPlaybackTime, true);
+    txt.style.opacity = '1';
+  }, 80);
 }
 function showLyricsLoading(){
   const txt = document.getElementById('npLyricsText');
@@ -1806,8 +1891,34 @@ function ytLoad(videoId){
        works. When it cannot fetch the stream it answers {ok:false} and we fall back to
        the embedded web player, exactly as before. */
     if (NP && NP.loadStream) {
-      Promise.resolve().then(() => NP.loadStream({ videoId: videoId })).then(r => {
-        if (r && r.ok) return;
+      /* The endpoint is re-sent whenever it changed, so it is guaranteed to be in place
+         before the very first track is resolved (the boot-time call can land before the
+         native bridge is listening). */
+      const api = lsGet('mp_stream_api') || '';
+      const ready = (NP.setStreamEndpoint && api !== lastPushedApi)
+        ? NP.setStreamEndpoint({ url: api }).then(() => { lastPushedApi = api; }).catch(() => {})
+        : Promise.resolve();
+      ready.then(() => NP.loadStream({ videoId: videoId })).then(r => {
+        if (r && r.ok) {
+          // Try to get initial state/duration faster
+          try { NP.getState && NP.getState().then(st => {
+            if (!st) return;
+            const cur = getCur();
+            if (cur) {
+              if (st.duration && Math.abs((cur.duration||0)-st.duration)>2) { cur.duration = Math.round(st.duration); saveTrackToDB(cur); updDurUI(cur.id); }
+              if (st.currentTime !== undefined) {
+                const d = cur.duration || st.duration || 0;
+                const c = st.currentTime || 0;
+                const p = d ? (c/d)*100 : 0;
+                npCurrentEl.textContent = fmt(c); npDurationEl.textContent = fmt(d);
+                npSeekEl.value = p; npSeekEl.style.setProperty('--fill', p+'%');
+                miniProgressEl.style.width = p+'%';
+                if (typeof updateLyricsSync === 'function') updateLyricsSync(c);
+              }
+            }
+          }).catch(()=>{}); } catch(e) {}
+          return;
+        }
         NP.load({ videoId: videoId }).then(() => { NP.play(); });
       }).catch(() => {
         NP.load({ videoId: videoId }).then(() => { NP.play(); });
@@ -1831,7 +1942,7 @@ function ytStop(){
   }
   try { if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo(); } catch (e) {}
 }
-function startYtTick(){ if (ytTick) return; ytTick = setInterval(ytOnTime, 100); ytOnTime(); }
+function startYtTick(){ if (ytTick) return; ytTick = setInterval(() => { ytOnTime(); if (isNativeYT) syncNativeStateAfterResume(); }, 250); ytOnTime(); }
 function stopYtTick(){ if (ytTick) clearInterval(ytTick); ytTick = null; }
 
 function ytOnTime(){
@@ -2106,6 +2217,30 @@ function ytParseISODuration(iso){
    backend involved, so this works the same way inside the packaged iOS app as
    it did on the web. Needs YOUTUBE_API_KEY configured above. */
 async function ytSearch(query){
+  if (!navigator.onLine) throw new Error('offline');
+  try {
+    return await ytSearchApi(query);
+  } catch (e) {
+    /* The Data API key is missing, over quota or blocked: fall back to the native
+       InnerTube search built into the iOS plugin (no key, no quota). */
+    return await ytSearchNative(query);
+  }
+}
+
+async function ytSearchNative(query){
+  const NP = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.YouTubeCapacitorPlugin;
+  if (!NP || !NP.search) throw new Error('no_native');
+  const r = await NP.search({ query: query });
+  return ((r && r.results) || []).map(x => ({
+    videoId: x.videoId,
+    title: x.title,
+    artist: x.artist,
+    duration: x.duration > 0 ? x.duration : null,
+    thumb: x.thumb || null
+  }));
+}
+
+async function ytSearchApi(query){
   if (!navigator.onLine) throw new Error('offline');
   if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'YOUR_YOUTUBE_DATA_API_KEY_HERE') throw new Error('no_key');
 
