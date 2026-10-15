@@ -8,6 +8,13 @@ export interface YouTubeCapacitorPlugin {
    * fall back to `load()` (embedded web player).
    */
   loadStream(options: { videoId: string }): Promise<{ ok: boolean }>;
+  /**
+   * Point stream extraction at your own endpoint. The URL is called with the video id
+   * (appended as `id=`, or substituted for a `{id}` placeholder) and must answer with
+   * JSON containing the audio URL under `url`, `audio`, `stream.url` or `data.url`.
+   * Pass an empty string to go back to the built-in extraction.
+   */
+  setStreamEndpoint(options: { url: string }): Promise<void>;
   play(): Promise<void>;
   pause(): Promise<void>;
   /** Play/pause decided by the native state; resolves with the new state. */

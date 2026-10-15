@@ -64,6 +64,8 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
     // other music app. If the URL cannot be fetched, the embedded web player is used.
     private let streamEnabled = true
     private var streamMode = false
+    // Optional user-supplied extraction endpoint (Settings -> "Audio source").
+    private var customStreamEndpoint: String?
     private var streamPlayer: AVPlayer?
     private var streamItem: AVPlayerItem?
     private var streamDuration: Double = 0
@@ -852,14 +854,14 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
             guard self.streamEnabled, !videoId.isEmpty else { call.resolve(["ok": false]); return }
             self.loadStartedAt = Date()
             self.loadGeneration &+= 1
-            self.fetchStreamURL(videoId: videoId) { [weak self] url, duration in
+            self.fetchStreamURL(videoId: videoId) { [weak self] source in
                 guard let self = self else { return }
-                guard let url = url else {
+                guard let source = source else {
                     self.stopStream()
                     call.resolve(["ok": false])
                     return
                 }
-                self.playStream(url: url, duration: duration, videoId: videoId)
+                self.playStream(source: source, videoId: videoId)
                 call.resolve(["ok": true])
             }
         }
@@ -874,90 +876,303 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
             return
         }
         loadStartedAt = Date()
-        fetchStreamURL(videoId: videoId) { [weak self] url, duration in
+        fetchStreamURL(videoId: videoId) { [weak self] source in
             guard let self = self else { return }
-            guard let url = url else {
+            guard let source = source else {
                 self.stopStream()
                 self.startLoading(videoId: videoId)
                 return
             }
-            self.playStream(url: url, duration: duration, videoId: videoId)
+            self.playStream(source: source, videoId: videoId)
         }
     }
 
-    /* YouTube keeps rotating the client name / API key that the "player" endpoint
-       accepts (projects like YouTune hard-code one and stop working a few months later),
-       so the configurations are tried one after another and the first answer that
-       carries a direct audio URL wins. */
-    private struct StreamConfig {
-        let client: String, version: String, key: String, host: String
-        var ua: String { client == "WEB" ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36" : "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip" }
-        var url: URL? { URL(string: host + "/youtubei/v1/player?alt=json&key=" + key) }
+    // MARK: - YouTube stream extraction (InnerTube)
+
+    /* One resolved playable stream: the direct audio URL plus the metadata and the
+       User-Agent the URL was minted for (the CDN is happiest when the request carries
+       the same identity). */
+    struct StreamSource {
+        let url: URL
+        let duration: Double
+        let title: String
+        let artist: String
+        let userAgent: String
     }
-    private static let streamConfigs: [StreamConfig] = [
-        StreamConfig(client: "ANDROID_MUSIC", version: "5.16.51", key: "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30", host: "https://music.youtube.com"),
-        StreamConfig(client: "ANDROID", version: "19.09.37", key: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w", host: "https://music.youtube.com"),
-        StreamConfig(client: "WEB", version: "2.20240403.00.00", key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", host: "https://www.youtube.com")
+
+    /* An InnerTube client profile. YouTube only hands out direct stream URLs to
+       specific clients; the ones below were the ones answering with playable URLs when
+       this was written, in the order they are tried. */
+    private struct StreamClient {
+        let name: String, nameID: String, version: String, userAgent: String
+    }
+
+    /* These three are tried one after another; the first one that answers with a direct
+       audio URL wins. ANDROID_VR is first because it is the client that needs no
+       proof-of-origin token for unauthenticated playback. */
+    private static let streamClients: [StreamClient] = [
+        StreamClient(
+            name: "ANDROID_VR", nameID: "28", version: "1.65.10",
+            userAgent:
+                "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+        ),
+        StreamClient(
+            name: "IOS", nameID: "5", version: "21.02.3",
+            userAgent:
+                "com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)"
+        ),
+        StreamClient(
+            name: "ANDROID", nameID: "3", version: "21.02.35",
+            userAgent: "com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip"
+        ),
     ]
 
-    private func fetchStreamURL(videoId: String, completion: @escaping (URL?, Double) -> Void) {
-        tryConfigs(YouTubeCapacitorPlugin.streamConfigs, videoId: videoId, completion: completion)
+    // Public InnerTube key published in YouTube's own web client JavaScript.
+    // The player endpoint must be asked on www.youtube.com - the same clients asked on
+    // youtubei.googleapis.com or music.youtube.com answer with SABR-only responses that
+    // contain no direct URL at all (that is what used to break playback here).
+    private static let innertubeKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+    private static let innertubePlayerURL = "https://www.youtube.com/youtubei/v1/player"
+    private static let browserUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+    private static func contextFields(for client: StreamClient) -> [String: Any] {
+        var c: [String: Any] = ["hl": "en", "clientName": client.name,
+                                "clientVersion": client.version, "userAgent": client.userAgent]
+        switch client.name {
+        case "ANDROID_VR":
+            c["deviceMake"] = "Oculus"
+            c["deviceModel"] = "Quest 3"
+            c["androidSdkVersion"] = 32
+            c["osName"] = "Android"
+            c["osVersion"] = "12L"
+        case "IOS":
+            c["deviceMake"] = "Apple"
+            c["deviceModel"] = "iPhone16,2"
+            c["osName"] = "iPhone"
+            c["osVersion"] = "18.3.2.22D82"
+        case "ANDROID":
+            c["androidSdkVersion"] = 30
+            c["osName"] = "Android"
+            c["osVersion"] = "11"
+        default:
+            break
+        }
+        return c
     }
 
-    private func tryConfigs(_ configs: [StreamConfig], videoId: String, completion: @escaping (URL?, Double) -> Void) {
-        guard let cfg = configs.first else { completion(nil, 0); return }
-        guard let u = cfg.url else { tryConfigs(Array(configs.dropFirst()), videoId: videoId, completion: completion); return }
-        var req = URLRequest(url: u)
-        req.httpMethod = "POST"
-        req.timeoutInterval = 12
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(cfg.ua, forHTTPHeaderField: "User-Agent")
-        req.setValue("https://music.youtube.com/", forHTTPHeaderField: "Referer")
-        let body: [String: Any] = [
-            "videoId": videoId,
-            "contentCheckOk": true,
-            "racyCheckOk": true,
-            "context": ["client": ["clientName": cfg.client, "clientVersion": cfg.version, "hl": "en", "gl": "US"]]
-        ]
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let parsed: (URL?, Double) = (code == 200 && data != nil) ? YouTubeCapacitorPlugin.parseStream(data: data!) : (nil, 0)
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if let url = parsed.0 { completion(url, parsed.1) }
-                else { self.tryConfigs(Array(configs.dropFirst()), videoId: videoId, completion: completion) }
+    /* visitorData is the session identity YouTube ties the answer to. Without it the
+       player endpoint replies LOGIN_REQUIRED ("Sign in to confirm you're not a bot") and
+       no stream URL is ever returned. It is lifted from the watch page and reused for
+       half an hour, the same way yt-dlp keeps one visitor id per session. */
+    private var visitorDataCache: (value: String, at: Date)?
+
+    private func loadVisitorData(videoId: String, completion: @escaping (String?) -> Void) {
+        if let cached = visitorDataCache, Date().timeIntervalSince(cached.at) < 1800 {
+            completion(cached.value)
+            return
+        }
+        guard let url = URL(string: "https://www.youtube.com/watch?v=\(videoId)&hl=en") else {
+            completion(nil)
+            return
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 15
+        req.setValue(YouTubeCapacitorPlugin.browserUserAgent, forHTTPHeaderField: "User-Agent")
+        req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        req.setValue("SOCS=CAI", forHTTPHeaderField: "Cookie")
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+            var found: String?
+            if let data = data, let html = String(data: data, encoding: .utf8) {
+                let pattern = "\"visitorData\"\\s*:\\s*\"([^\"]+)\""
+                if let regex = try? NSRegularExpression(pattern: pattern),
+                   let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+                   let range = Range(match.range(at: 1), in: html) {
+                    found = String(html[range])
+                }
+            }
+            DispatchQueue.main.async {
+                if let found = found { self?.visitorDataCache = (found, Date()) }
+                completion(found)
             }
         }.resume()
     }
 
-    private static func parseStream(data: Data) -> (URL?, Double) {
-        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, 0) }
-        let details = json["videoDetails"] as? [String: Any]
-        let duration = Double((details?["lengthSeconds"] as? String) ?? "") ?? 0
-        let streaming = json["streamingData"] as? [String: Any]
-        let formats = (streaming?["adaptiveFormats"] as? [[String: Any]]) ?? []
-        var chosen: URL? = nil
-        var chosenBitrate: Double = -1
-        var fallback: URL? = nil
-        for f in formats {
-            guard let mime = f["mimeType"] as? String, mime.hasPrefix("audio/") else { continue }
-            guard let s = f["url"] as? String, let url = URL(string: s) else { continue }
-            if fallback == nil { fallback = url }
-            // Ranking by audioQuality (HIGH > MEDIUM > LOW), same as the YouTune extractor
-            let q = (f["audioQuality"] as? String) ?? ""
-            let rank: Double = q == "AUDIO_QUALITY_HIGH" ? 3 : (q == "AUDIO_QUALITY_MEDIUM" ? 2 : 1)
-            if rank > chosenBitrate { chosen = url; chosenBitrate = rank }
+    private func fetchStreamURL(videoId: String, completion: @escaping (StreamSource?) -> Void) {
+        // A user-supplied endpoint (Settings -> audio source) is tried first, so the app
+        // can run against the user's own extractor instead of YouTube directly.
+        if let endpoint = customStreamEndpoint, !endpoint.isEmpty {
+            fetchFromCustomEndpoint(endpoint, videoId: videoId) { [weak self] source in
+                guard let self = self else { return }
+                if let source = source { completion(source); return }
+                self.loadVisitorData(videoId: videoId) { vd in
+                    self.tryStreamClients(YouTubeCapacitorPlugin.streamClients,
+                                          videoId: videoId, visitorData: vd, completion: completion)
+                }
+            }
+            return
         }
-        return (chosen ?? fallback, duration)
+        loadVisitorData(videoId: videoId) { [weak self] vd in
+            guard let self = self else { return }
+            self.tryStreamClients(YouTubeCapacitorPlugin.streamClients,
+                                  videoId: videoId, visitorData: vd, completion: completion)
+        }
     }
 
-    private func playStream(url: URL, duration: Double, videoId: String) {
+    private func tryStreamClients(_ clients: [StreamClient], videoId: String,
+                                  visitorData: String?, completion: @escaping (StreamSource?) -> Void) {
+        guard let client = clients.first else {
+            DispatchQueue.main.async { completion(nil) }
+            return
+        }
+        requestStream(client: client, videoId: videoId, visitorData: visitorData) { [weak self] source in
+            guard let self = self else { return }
+            if let source = source { completion(source); return }
+            self.tryStreamClients(Array(clients.dropFirst()), videoId: videoId,
+                                  visitorData: visitorData, completion: completion)
+        }
+    }
+
+    private func requestStream(client: StreamClient, videoId: String, visitorData: String?,
+                               completion: @escaping (StreamSource?) -> Void) {
+        var fields = YouTubeCapacitorPlugin.contextFields(for: client)
+        if let vd = visitorData, !vd.isEmpty { fields["visitorData"] = vd }
+        let body: [String: Any] = [
+            "context": ["client": fields],
+            "videoId": videoId,
+            "contentCheckOk": true,
+            "racyCheckOk": true,
+            // yt-dlp sends this for every client; without it some clients answer with a
+            // SABR-only response that has no playable URL in it.
+            "playbackContext": ["contentPlaybackContext": ["html5Preference": "HTML5_PREF_WANTS"]],
+        ]
+        guard var comps = URLComponents(string: YouTubeCapacitorPlugin.innertubePlayerURL) else {
+            completion(nil); return
+        }
+        comps.queryItems = [
+            URLQueryItem(name: "key", value: YouTubeCapacitorPlugin.innertubeKey),
+            URLQueryItem(name: "prettyPrint", value: "false"),
+        ]
+        guard let url = comps.url else { completion(nil); return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 15
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(client.userAgent, forHTTPHeaderField: "User-Agent")
+        req.setValue(client.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        req.setValue(client.version, forHTTPHeaderField: "X-YouTube-Client-Version")
+        req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        req.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
+        req.setValue("https://www.youtube.com/watch?v=\(videoId)", forHTTPHeaderField: "Referer")
+        req.setValue("SOCS=CAI", forHTTPHeaderField: "Cookie")
+        if let vd = visitorData, !vd.isEmpty { req.setValue(vd, forHTTPHeaderField: "X-Goog-Visitor-Id") }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: req) { data, response, _ in
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            var source: StreamSource?
+            if code == 200, let data = data {
+                source = YouTubeCapacitorPlugin.parseStream(data: data, client: client)
+            }
+            DispatchQueue.main.async { completion(source) }
+        }.resume()
+    }
+
+    /* Own-endpoint support: the configured URL is called with the video id appended (or
+       substituted for a {id} placeholder) and is expected to answer with JSON that has a
+       stream URL under one of the usual keys. Any failure simply falls back to the
+       built-in extraction. */
+    private func fetchFromCustomEndpoint(_ endpoint: String, videoId: String,
+                                        completion: @escaping (StreamSource?) -> Void) {
+        let target = endpoint.contains("{id}")
+            ? endpoint.replacingOccurrences(of: "{id}", with: videoId)
+            : endpoint + (endpoint.contains("?") ? "&" : "?") + "id=" + videoId
+        guard let url = URL(string: target) else { completion(nil); return }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 20
+        req.setValue(YouTubeCapacitorPlugin.browserUserAgent, forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: req) { data, response, _ in
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            var source: StreamSource?
+            if code == 200, let data = data,
+               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                let raw = (json["url"] as? String)
+                    ?? (json["audio"] as? String)
+                    ?? ((json["stream"] as? [String: Any])?["url"] as? String)
+                    ?? ((json["data"] as? [String: Any])?["url"] as? String)
+                if let raw = raw, let streamURL = URL(string: raw) {
+                    source = StreamSource(
+                        url: streamURL,
+                        duration: (json["duration"] as? NSNumber)?.doubleValue ?? 0,
+                        title: json["title"] as? String ?? "",
+                        artist: json["artist"] as? String ?? "",
+                        userAgent: YouTubeCapacitorPlugin.browserUserAgent
+                    )
+                }
+            }
+            DispatchQueue.main.async { completion(source) }
+        }.resume()
+    }
+
+    @objc func setStreamEndpoint(_ call: CAPPluginCall) {
+        let endpoint = (call.getString("url") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async {
+            self.customStreamEndpoint = endpoint.isEmpty ? nil : endpoint
+            call.resolve()
+        }
+    }
+
+    /* Picks the format to hand to AVPlayer. audio/mp4 (AAC) comes first because that is
+       what AVPlayer plays natively; the webm/opus formats YouTube also offers are not
+       playable there, so when only those are present the caller falls back to the
+       embedded player instead of starting playback that would stay silent. */
+    private static func parseStream(data: Data, client: StreamClient) -> StreamSource? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        guard let streaming = json["streamingData"] as? [String: Any] else { return nil }
+
+        let details = json["videoDetails"] as? [String: Any]
+        let duration = Double((details?["lengthSeconds"] as? String) ?? "") ?? 0
+        let title = details?["title"] as? String ?? ""
+        let artist = details?["author"] as? String ?? ""
+
+        let formats = (streaming["adaptiveFormats"] as? [[String: Any]]) ?? []
+        var best: (url: URL, rank: Int, bitrate: Double)?
+        for f in formats {
+            guard let mime = f["mimeType"] as? String, mime.hasPrefix("audio/mp4") else { continue }
+            guard let raw = f["url"] as? String, let url = URL(string: raw) else { continue }
+            let quality = (f["audioQuality"] as? String) ?? ""
+            let rank: Int
+            switch quality {
+            case "AUDIO_QUALITY_HIGH": rank = 4
+            case "AUDIO_QUALITY_MEDIUM": rank = 3
+            case "AUDIO_QUALITY_LOW": rank = 2
+            case "AUDIO_QUALITY_ULTRALOW": rank = 1
+            default: rank = 0
+            }
+            let bitrate = (f["bitrate"] as? NSNumber)?.doubleValue ?? 0
+            if best == nil || rank > best!.rank || (rank == best!.rank && bitrate > best!.bitrate) {
+                best = (url, rank, bitrate)
+            }
+        }
+        if let best = best {
+            return StreamSource(url: best.url, duration: duration, title: title,
+                                artist: artist, userAgent: client.userAgent)
+        }
+
+        // No AAC track: an HLS manifest is still playable by AVPlayer, but only if the
+        // client actually returned one.
+        if let raw = streaming["hlsManifestUrl"] as? String, let url = URL(string: raw) {
+            return StreamSource(url: url, duration: duration, title: title,
+                                artist: artist, userAgent: client.userAgent)
+        }
+        return nil
+    }
+
+    private func playStream(source: StreamSource, videoId: String) {
         stopStream()
         loadConfirmed = true
         currentVideoId = videoId
-        streamDuration = duration
-        cachedDuration = duration
+        streamDuration = source.duration
+        cachedDuration = source.duration
         lastDurationFetch = Date()
         loadStartedAt = Date()
         intendedPlaybackState = "playing"
@@ -966,7 +1181,13 @@ public class YouTubeCapacitorPlugin: CAPPlugin {
         silentPlayer.play()
         beginReceivingRemote()
 
-        let item = AVPlayerItem(url: url)
+        /* The CDN URL was minted for a specific client identity, so the request for the
+           media itself carries that same User-Agent. */
+        let asset = AVURLAsset(
+            url: source.url,
+            options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": source.userAgent]])
+        let item = AVPlayerItem(asset: asset)
+        item.audioTimePitchAlgorithm = .spectral
         streamItem = item
         let p = AVPlayer(playerItem: item)
         p.automaticallyWaitsToMinimizeStalling = true
